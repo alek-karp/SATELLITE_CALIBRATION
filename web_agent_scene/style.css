@@ -1,0 +1,36 @@
+:root {
+  --space: #02050a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  background: var(--space);
+}
+
+body {
+  min-height: 100vh;
+}
+
+.viewport {
+  position: relative;
+  min-height: 100vh;
+}
+
+#scene-root {
+  position: absolute;
+  inset: 0;
+}
+
+@media (max-width: 980px) {
+  .viewport {
+    min-height: 100vh;
+  }
+}
