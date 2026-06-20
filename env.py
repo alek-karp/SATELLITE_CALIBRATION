@@ -41,6 +41,28 @@ CONTEXT_COST = 5           # sim seconds spent fetching an operational-context r
 HOLD_IDX = ACTIONS.index("hold")
 POL_NAMES = ["H", "V", "RHCP", "LHCP"]
 
+# --- efficiency scoring -----------------------------------------------------
+# The base score is "fraction of the pass above the usable SNR threshold". On
+# top of that we charge for *how* the link was held: needless antenna slew and
+# receiver thrash. Both are expressed as a fraction of the [0, 1] score, scaled
+# by usage-per-pass-second so pass length doesn't change the calibration.
+SLEW_COST_WEIGHT = 0.25     # score lost per (degree slewed / pass second)
+ACTUATOR_COST_WEIGHT = 0.15  # score lost per (freq/pol/bw change / pass second)
+EFFICIENCY_COST_CAP = 0.20   # efficiency never removes more than this much score
+
+# --- contextual penalties ---------------------------------------------------
+# Deterministic checks run against the agent's action log and the episode's
+# `rules` spec (see WHY_AGENT.md). The natural-language context tells the agent
+# what is correct; these rules verify it acted on it. Values are score
+# fractions (subtracted from the [0, 1] reward). A task opts in by passing the
+# matching key in its `rules` dict; the magnitude is the value.
+CONTEXT_RULES = {
+    "no_freq_hop": "freq_hop_against_advisory",      # advisory: RFI self-clears, ride it
+    "no_large_slew": "large_slew_on_sticky_servo",   # operator log: servo sticks, small nudges only
+    "no_handoff": "handoff_when_unavailable",         # coordination: no station can take handoff
+    "continuous_lock": "lock_dropped_on_high_priority",  # mission brief: continuous lock or nothing
+}
+
 
 # ===========================================================================
 # Ground-station console: drives the Gymnasium sim, tracks lock statistics
@@ -53,7 +75,12 @@ class GroundStationConsole:
     how much of the pass stayed above the usable SNR threshold.
     """
 
-    def __init__(self, episode: EpisodePlan, context: dict | None = None):
+    def __init__(
+        self,
+        episode: EpisodePlan,
+        context: dict | None = None,
+        rules: dict | None = None,
+    ):
         self.gym = SatelliteEnv()
         self.gym._episode = episode
         self.gym._t = 0
@@ -73,16 +100,24 @@ class GroundStationConsole:
             "locked": True,
         }
         self.context = context or {}
+        self.rules = rules or {}
         self.done = False
         self.steps_taken = 0
         self.steps_above = 0
         self.steps_locked = 0
+        # Efficiency + contextual-penalty bookkeeping.
+        self.total_slew = 0.0          # cumulative degrees of antenna movement
+        self.actuator_uses = 0         # freq / pol / bandwidth changes
+        self.handoff_requested = False
+        self.decisions: list[str] = []  # decision actions (excludes auto-holds)
 
     def _step(self, action_idx: int) -> None:
         if self.done:
             return
         _, _, terminated, truncated, info = self.gym.step(action_idx)
         self.steps_taken += 1
+        # `slew_rate` is set by the gym for whatever action just ran (0 on holds).
+        self.total_slew += abs(self.gym._state.get("slew_rate", 0.0))
         if info["snr_db"] > SNR_THRESHOLD:
             self.steps_above += 1
         if info["locked"]:
@@ -92,6 +127,12 @@ class GroundStationConsole:
 
     def act(self, action_name: str, duration: int = STEP_SECONDS) -> None:
         """Apply one action, then hold for the rest of the time chunk."""
+        self.decisions.append(action_name)
+        if action_name.startswith(("shift_freq", "cycle_polarization")) or \
+                action_name in ("narrow_bandwidth", "widen_bandwidth"):
+            self.actuator_uses += 1
+        if action_name == "request_handoff":
+            self.handoff_requested = True
         self._step(ACTIONS.index(action_name))
         for _ in range(max(0, duration - 1)):
             if self.done:
@@ -105,10 +146,64 @@ class GroundStationConsole:
             self._step(HOLD_IDX)
             guard += 1
 
-    def score(self) -> float:
-        """Reward in [0, 1]: fraction of the full pass kept above SNR threshold."""
+    def efficiency_cost(self) -> float:
+        """Score lost to needless antenna slew and receiver thrash (capped)."""
         total = self.gym._episode.pass_duration
-        return self.steps_above / total if total else 0.0
+        if not total:
+            return 0.0
+        slew = SLEW_COST_WEIGHT * (self.total_slew / total)
+        thrash = ACTUATOR_COST_WEIGHT * (self.actuator_uses / total)
+        return min(EFFICIENCY_COST_CAP, slew + thrash)
+
+    def contextual_penalty(self) -> tuple[float, dict[str, float]]:
+        """Deterministic penalties for ignoring operational context.
+
+        Checked against the episode's ``rules`` spec and the agent's action log.
+        Returns the total penalty and a per-violation breakdown.
+        """
+        breakdown: dict[str, float] = {}
+        acts = self.decisions
+
+        def fire(key: str, triggered: bool) -> None:
+            mag = self.rules.get(key)
+            if mag and triggered:
+                breakdown[CONTEXT_RULES[key]] = float(mag)
+
+        fire("no_freq_hop", any(a.startswith("shift_freq") for a in acts))
+        fire(
+            "no_large_slew",
+            any(a.endswith("_large") or a == "snap_to_ephemeris" for a in acts),
+        )
+        fire("no_handoff", self.handoff_requested)
+        fire("continuous_lock", self.steps_locked < self.steps_taken)
+        return sum(breakdown.values()), breakdown
+
+    def score(self) -> float:
+        """Composite reward in [0, 1].
+
+        Base = fraction of the pass kept above the usable SNR threshold, minus
+        slew/actuator efficiency cost, minus deterministic contextual penalties
+        for ignoring the operational brief (see WHY_AGENT.md). Clamped to [0, 1].
+        """
+        total = self.gym._episode.pass_duration
+        base = self.steps_above / total if total else 0.0
+        penalty, _ = self.contextual_penalty()
+        return float(max(0.0, min(1.0, base - self.efficiency_cost() - penalty)))
+
+    def score_breakdown(self) -> dict:
+        """Per-term score breakdown for demos / debugging."""
+        total = self.gym._episode.pass_duration
+        base = self.steps_above / total if total else 0.0
+        penalty, violations = self.contextual_penalty()
+        return {
+            "base_lock_fraction": round(base, 4),
+            "efficiency_cost": round(self.efficiency_cost(), 4),
+            "contextual_penalty": round(penalty, 4),
+            "violations": violations,
+            "total_slew_deg": round(self.total_slew, 2),
+            "actuator_uses": self.actuator_uses,
+            "score": round(self.score(), 4),
+        }
 
     def telemetry(self) -> str:
         g, s, ep = self.gym, self.gym._state, self.gym._episode
@@ -372,10 +467,13 @@ async def hold_the_link(
     seed: int = 0,
     target_lock_pct: float = 0.85,
     context: dict | None = None,
+    rules: dict | None = None,
 ):
     """Operate a satellite pass through an injected anomaly.
 
-    Reward: fraction of the pass kept above the usable SNR threshold (0.0–1.0).
+    Reward (0.0–1.0): fraction of the pass kept above the usable SNR threshold,
+    minus slew/actuator efficiency cost, minus deterministic contextual
+    penalties (``rules``) for ignoring the operational brief. See WHY_AGENT.md.
     """
     global _console
     episode = _build_episode(
@@ -392,7 +490,7 @@ async def hold_the_link(
         noise_level=noise_level,
         seed=seed,
     )
-    _console = GroundStationConsole(episode, context)
+    _console = GroundStationConsole(episode, context, rules)
     yield _build_prompt(_console, target_lock_pct)
     _console.finish()
     yield _console.score()
@@ -414,6 +512,7 @@ if __name__ == "__main__":
             reward = await gen.asend("done")
         except StopAsyncIteration as stop:
             reward = stop.value
-        print(f"\nreward (fraction of pass above threshold): {reward}")
+        print(f"\nreward (composite): {reward}")
+        print(f"breakdown: {_console.score_breakdown()}")
 
     asyncio.run(_smoke())

@@ -83,6 +83,76 @@ class TestConsole:
         assert a.score() == b.score()
 
 
+class TestEfficiencyAndPenalties:
+    def test_thrash_costs_score(self):
+        # Two identical clean passes; the thrasher spams freq hops + large slews.
+        calm = GroundStationConsole(_episode(anomaly="none", noise_level=60.0))
+        for _ in range(8):
+            calm.act("snap_to_ephemeris", duration=10)
+        calm.finish()
+
+        thrash = GroundStationConsole(_episode(anomaly="none", noise_level=60.0))
+        for _ in range(8):
+            thrash.act("snap_to_ephemeris", duration=1)
+            thrash.act("shift_freq_pos_coarse", duration=1)
+        thrash.finish()
+        assert thrash.actuator_uses > 0
+        assert thrash.efficiency_cost() > calm.efficiency_cost()
+
+    def test_efficiency_cost_is_capped(self):
+        c = GroundStationConsole(_episode(pass_steps=60))
+        for _ in range(60):
+            c.act("snap_to_ephemeris", duration=1)
+        c.finish()
+        assert c.efficiency_cost() <= envmod.EFFICIENCY_COST_CAP
+
+    def test_freq_hop_penalty_fires_only_when_ruled(self):
+        rules = {"no_freq_hop": 0.2}
+        guilty = GroundStationConsole(_episode(anomaly="rfi", seed=2), rules=rules)
+        guilty.act("shift_freq_pos_med", duration=5)
+        guilty.finish()
+        pen, breakdown = guilty.contextual_penalty()
+        assert pen == 0.2
+        assert "freq_hop_against_advisory" in breakdown
+
+        # Same actions, no rule → no penalty.
+        innocent = GroundStationConsole(_episode(anomaly="rfi", seed=2))
+        innocent.act("shift_freq_pos_med", duration=5)
+        innocent.finish()
+        assert innocent.contextual_penalty()[0] == 0.0
+
+    def test_large_slew_penalty(self):
+        rules = {"no_large_slew": 0.2}
+        guilty = GroundStationConsole(_episode(seed=3), rules=rules)
+        guilty.act("snap_to_ephemeris", duration=5)
+        guilty.finish()
+        assert guilty.contextual_penalty()[0] == 0.2
+
+        ok = GroundStationConsole(_episode(seed=3), rules=rules)
+        ok.act("nudge_az_neg_small", duration=5)
+        ok.finish()
+        assert ok.contextual_penalty()[0] == 0.0
+
+    def test_handoff_penalty(self):
+        rules = {"no_handoff": 0.15}
+        c = GroundStationConsole(_episode(seed=4), rules=rules)
+        c.act("request_handoff", duration=1)
+        c.finish()
+        assert c.handoff_requested
+        assert c.contextual_penalty()[0] == 0.15
+
+    def test_penalty_reduces_score(self):
+        ep_kwargs = dict(anomaly="rfi", seed=2)
+        unruled = GroundStationConsole(_episode(**ep_kwargs))
+        unruled.act("shift_freq_pos_med", duration=5)
+        unruled.finish()
+        ruled = GroundStationConsole(_episode(**ep_kwargs), rules={"no_freq_hop": 0.2})
+        ruled.act("shift_freq_pos_med", duration=5)
+        ruled.finish()
+        assert ruled.score() <= unruled.score()
+        assert ruled.score_breakdown()["contextual_penalty"] == 0.2
+
+
 class TestTools:
     async def test_take_action_unknown(self):
         gen = hold_the_link.func(anomaly="none", pass_steps=40, seed=0)
