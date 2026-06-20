@@ -1,5 +1,5 @@
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'env'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sim'))
 
 from satellite_env import SatelliteEnv, ACTIONS
 import numpy as np

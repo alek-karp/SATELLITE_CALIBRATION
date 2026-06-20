@@ -1,0 +1,16 @@
+.venv/
+.git/
+.gitignore
+.hud/
+.hud_eval.toml
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+tests/
+data/
+*.md
+episode_test.png
+test_env.py
+test_specific_episode.py

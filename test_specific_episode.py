@@ -3,7 +3,7 @@ Specific episode test — deterministic seed, known anomaly, heuristic agent.
 Goal: verify the environment behaves sensibly before training.
 """
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'env'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sim'))
 
 import numpy as np
 import matplotlib.pyplot as plt

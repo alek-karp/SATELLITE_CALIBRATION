@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ground Station Calibration — RL Environment</title>
+<meta name="description" content="An RL environment for autonomous satellite ground-station operation. Diagnose and recover degrading links under real orbital physics, scored on a signal you cannot fake." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#05070f;
+    --bg-2:#0a0e1c;
+    --panel:rgba(255,255,255,0.035);
+    --panel-strong:rgba(255,255,255,0.06);
+    --border:rgba(255,255,255,0.09);
+    --text:#e8edf9;
+    --muted:#8b94aa;
+    --muted-2:#646d83;
+    --green:#34d399;
+    --red:#f87171;
+    --cyan:#38bdf8;
+    --purple:#a78bfa;
+    --amber:#fbbf24;
+    --display:'Space Grotesk',system-ui,sans-serif;
+    --body:'Inter',system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --maxw:1140px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--body);
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3{font-family:var(--display);font-weight:600;line-height:1.1;letter-spacing:-0.02em}
+  .mono{font-family:var(--mono)}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .grad{
+    background:linear-gradient(120deg,#fff 0%,#bcd2ff 40%,#38bdf8 75%,#a78bfa 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .eyebrow{
+    font-family:var(--mono);font-size:.78rem;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--cyan);margin-bottom:18px;display:inline-flex;align-items:center;gap:10px;
+  }
+  .eyebrow::before{content:"";width:28px;height:1px;background:var(--cyan);opacity:.6}
+
+  /* ---------- starfield ---------- */
+  #stars{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .glowtop{
+    position:fixed;top:-40vh;left:50%;transform:translateX(-50%);
+    width:120vw;height:90vh;z-index:0;pointer-events:none;
+    background:radial-gradient(ellipse at center,rgba(56,189,248,.16),rgba(167,139,250,.07) 40%,transparent 70%);
+    filter:blur(20px);
+  }
+  main{position:relative;z-index:1}
+
+  /* ---------- nav ---------- */
+  nav{
+    position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);
+    background:rgba(5,7,15,.6);border-bottom:1px solid var(--border);
+  }
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:600}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .navlinks{display:flex;gap:28px;font-size:.92rem;color:var(--muted)}
+  .navlinks a:hover{color:var(--text)}
+  .nav-cta{font-family:var(--mono);font-size:.82rem;border:1px solid var(--border);padding:8px 14px;border-radius:8px;color:var(--text);transition:.2s}
+  .nav-cta:hover{border-color:var(--cyan);background:rgba(56,189,248,.08)}
+  @media(max-width:760px){.navlinks{display:none}}
+
+  /* ---------- hero ---------- */
+  .hero{padding:120px 0 80px;text-align:center}
+  .hero h1{font-size:clamp(2.6rem,6.4vw,5rem);font-weight:700;margin-bottom:24px}
+  .hero .sub{max-width:720px;margin:0 auto 14px;font-size:clamp(1.05rem,2vw,1.28rem);color:var(--muted)}
+  .badges{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:34px 0 40px}
+  .badge{font-family:var(--mono);font-size:.78rem;color:var(--muted);border:1px solid var(--border);background:var(--panel);padding:7px 13px;border-radius:99px}
+  .badge b{color:var(--text);font-weight:500}
+  .cta-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .btn{font-family:var(--display);font-weight:600;font-size:.98rem;padding:14px 26px;border-radius:12px;transition:.22s;display:inline-flex;align-items:center;gap:9px}
+  .btn-primary{background:linear-gradient(120deg,var(--cyan),var(--purple));color:#05070f;box-shadow:0 8px 30px rgba(56,189,248,.25)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(56,189,248,.4)}
+  .btn-ghost{border:1px solid var(--border);color:var(--text)}
+  .btn-ghost:hover{border-color:var(--cyan);background:rgba(56,189,248,.06)}
+
+  /* ---------- headline stat strip ---------- */
+  .statband{margin-top:70px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--panel)}
+  .statgrid{display:grid;grid-template-columns:repeat(4,1fr)}
+  .stat{padding:30px 18px;text-align:center;border-right:1px solid var(--border)}
+  .stat:last-child{border-right:none}
+  .stat .n{font-family:var(--display);font-weight:700;font-size:clamp(1.7rem,3.4vw,2.5rem);line-height:1}
+  .stat .l{font-size:.82rem;color:var(--muted);margin-top:8px}
+  .stat .n.g{color:var(--green)} .stat .n.r{color:var(--red)} .stat .n.c{color:var(--cyan)} .stat .n.p{color:var(--purple)}
+  @media(max-width:760px){.statgrid{grid-template-columns:repeat(2,1fr)}.stat:nth-child(2){border-right:none}.stat:nth-child(1),.stat:nth-child(2){border-bottom:1px solid var(--border)}}
+
+  /* ---------- sections ---------- */
+  section{padding:96px 0}
+  .sec-head{max-width:720px;margin-bottom:52px}
+  .sec-head h2{font-size:clamp(2rem,4vw,2.9rem);margin-bottom:18px}
+  .sec-head p{color:var(--muted);font-size:1.08rem}
+  .center{margin-left:auto;margin-right:auto;text-align:center}
+
+  /* result */
+  .result-card{
+    border:1px solid var(--border);border-radius:20px;overflow:hidden;background:var(--panel);
+    box-shadow:0 30px 80px rgba(0,0,0,.45);
+  }
+  .result-card .bar{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--bg-2)}
+  .result-card .bar i{width:11px;height:11px;border-radius:50%;display:inline-block}
+  .result-card .bar .t{margin-left:12px;font-family:var(--mono);font-size:.82rem;color:var(--muted)}
+  .result-card img{width:100%;display:block;background:#fff}
+  .result-note{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:26px;color:var(--muted);font-size:.92rem}
+  .result-note span{display:inline-flex;align-items:center;gap:8px}
+  .swatch{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+  /* feature grid */
+  .grid{display:grid;gap:20px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:880px){.g3,.g2{grid-template-columns:1fr}}
+  .card{
+    border:1px solid var(--border);border-radius:16px;padding:26px;background:var(--panel);transition:.25s;
+  }
+  .card:hover{border-color:rgba(56,189,248,.4);background:var(--panel-strong);transform:translateY(-3px)}
+  .card .ic{font-size:1.5rem;margin-bottom:14px;display:inline-grid;place-items:center;width:46px;height:46px;border-radius:12px;background:rgba(56,189,248,.1);border:1px solid var(--border)}
+  .card h3{font-size:1.18rem;margin-bottom:10px}
+  .card p{color:var(--muted);font-size:.96rem}
+
+  /* steps / how it works */
+  .steps{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center}
+  @media(max-width:880px){.steps{grid-template-columns:1fr;gap:32px}}
+  .step{display:flex;gap:18px;padding:20px 0;border-bottom:1px solid var(--border)}
+  .step:last-child{border-bottom:none}
+  .step .num{font-family:var(--mono);font-size:.85rem;color:var(--cyan);border:1px solid var(--border);border-radius:9px;width:34px;height:34px;display:grid;place-items:center;flex-shrink:0}
+  .step h3{font-size:1.08rem;margin-bottom:5px}
+  .step p{color:var(--muted);font-size:.95rem}
+
+  /* code block */
+  .code{
+    border:1px solid var(--border);border-radius:16px;background:#070b16;overflow:hidden;
+    font-family:var(--mono);font-size:.86rem;line-height:1.7;box-shadow:0 24px 60px rgba(0,0,0,.4);
+  }
+  .code .hd{padding:11px 16px;border-bottom:1px solid var(--border);color:var(--muted-2);font-size:.78rem;display:flex;gap:7px;align-items:center}
+  .code .hd i{width:10px;height:10px;border-radius:50%}
+  .code pre{padding:20px 18px;overflow-x:auto;margin:0}
+  .c-key{color:#c792ea}.c-fn{color:#82aaff}.c-str{color:#c3e88d}.c-com{color:#546178}.c-num{color:#f78c6c}.c-y{color:var(--amber)}
+
+  /* table */
+  .tablewrap{border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--panel)}
+  table{width:100%;border-collapse:collapse;font-size:.94rem}
+  th,td{padding:15px 18px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+  th{font-family:var(--mono);font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:var(--bg-2)}
+  tr:last-child td{border-bottom:none}
+  td .ok{color:var(--green)} td .no{color:var(--red)}
+  .sig{font-family:var(--mono);font-size:.85rem;color:var(--cyan)}
+
+  /* anomaly cards */
+  .anom{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+  @media(max-width:980px){.anom{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:520px){.anom{grid-template-columns:1fr}}
+  .acard{border:1px solid var(--border);border-radius:14px;padding:20px;background:var(--panel)}
+  .acard .tag{font-family:var(--mono);font-size:.72rem;color:var(--purple);text-transform:uppercase;letter-spacing:.1em}
+  .acard h3{font-size:1.02rem;margin:8px 0 10px}
+  .acard p{font-size:.86rem;color:var(--muted)}
+
+  /* reward */
+  .reward{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  @media(max-width:880px){.reward{grid-template-columns:1fr}}
+  .rcard{border:1px solid var(--border);border-radius:16px;padding:24px;background:var(--panel)}
+  .rcard .v{font-family:var(--display);font-weight:700;font-size:1.9rem}
+  .rcard .v.pos{color:var(--green)}.rcard .v.neg{color:var(--red)}.rcard .v.warn{color:var(--amber)}
+  .rcard .k{font-family:var(--mono);font-size:.82rem;color:var(--text);margin:6px 0 8px}
+  .rcard p{font-size:.9rem;color:var(--muted)}
+
+  /* tech */
+  .tech{display:flex;flex-wrap:wrap;gap:12px}
+  .chip{border:1px solid var(--border);background:var(--panel);border-radius:10px;padding:11px 16px;font-size:.9rem;display:flex;gap:9px;align-items:center}
+  .chip b{font-family:var(--display)}
+  .chip span{color:var(--muted);font-size:.84rem}
+
+  /* cta band */
+  .ctaband{border:1px solid var(--border);border-radius:24px;padding:56px 32px;text-align:center;
+    background:linear-gradient(160deg,rgba(56,189,248,.08),rgba(167,139,250,.06));position:relative;overflow:hidden}
+  .ctaband h2{font-size:clamp(1.8rem,3.6vw,2.6rem);margin-bottom:16px}
+  .ctaband p{color:var(--muted);max-width:560px;margin:0 auto 30px}
+
+  footer{border-top:1px solid var(--border);padding:44px 0;color:var(--muted-2);font-size:.88rem}
+  footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px}
+
+  .reveal{opacity:0;transform:translateY(26px);transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)}
+  .reveal.in{opacity:1;transform:none}
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="glowtop"></div>
+
+<nav>
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span> GroundStation<span style="color:var(--muted)">·RL</span></div>
+    <div class="navlinks">
+      <a href="#result">Result</a>
+      <a href="#problem">Problem</a>
+      <a href="#how">How it works</a>
+      <a href="#agent">Why an agent</a>
+      <a href="#env">Environment</a>
+    </div>
+    <a class="nav-cta" href="https://docs.hud.ai/v6/core/tasks" target="_blank" rel="noopener">Built on HUD v6 ↗</a>
+  </div>
+</nav>
+
+<main>
+  <!-- HERO -->
+  <header class="hero wrap">
+    <div class="eyebrow reveal">HUD Frontier / RSI · RL Environments Hackathon</div>
+    <h1 class="reveal">Keep the satellite link<br><span class="grad">alive — autonomously.</span></h1>
+    <p class="sub reveal">An RL environment for autonomous satellite ground-station operation. An agent acquires, tracks, <b style="color:var(--text)">diagnoses</b>, and recovers a degrading link under real orbital physics — scored on a signal you cannot fake.</p>
+    <div class="badges reveal">
+      <span class="badge"><b>Skyfield</b> orbital arcs</span>
+      <span class="badge"><b>5</b> anomaly modes</span>
+      <span class="badge"><b>24</b> agent actions</span>
+      <span class="badge"><b>Gemma</b> · RFT-ready</span>
+    </div>
+    <div class="cta-row reveal">
+      <a class="btn btn-primary" href="#result">See the result →</a>
+      <a class="btn btn-ghost" href="#how">How it works</a>
+    </div>
+  </header>
+
+  <!-- STAT BAND -->
+  <div class="statband reveal">
+    <div class="wrap statgrid">
+      <div class="stat"><div class="n g" data-count="100" data-suffix="%">100%</div><div class="l">Pass above threshold — context-aware agent</div></div>
+      <div class="stat"><div class="n r" data-count="38" data-suffix="%">38%</div><div class="l">Pass above threshold — context-blind baseline</div></div>
+      <div class="stat"><div class="n c" data-count="600" data-suffix="s">600s</div><div class="l">Real-physics pass, second-by-second</div></div>
+      <div class="stat"><div class="n p" data-count="25000" data-suffix="+">25k+</div><div class="l">Real satellites = effectively infinite episodes</div></div>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <section id="result" class="wrap">
+    <div class="sec-head center">
+      <div class="eyebrow" style="justify-content:center">The headline</div>
+      <h2>Same dip. Same physics.<br>Different <span class="grad">diagnosis.</span></h2>
+      <p style="margin-left:auto;margin-right:auto">A slow pointing drift hits mid-pass. The context-blind baseline misreads the SNR dip as interference and chases frequency — never re-centering the beam, so the drift carries the signal off the dish. The context-aware agent reads it correctly and holds the link.</p>
+    </div>
+    <div class="result-card reveal">
+      <div class="bar"><i style="background:#f87171"></i><i style="background:#fbbf24"></i><i style="background:#34d399"></i><span class="t">demo_baseline_vs_agent.py — signal above threshold: baseline 38% → agent 100%</span></div>
+      <img src="demo_baseline_vs_agent.png" alt="SNR, pointing error and cumulative reward: context-aware agent maintains the link while the context-blind baseline loses it" />
+    </div>
+    <div class="result-note">
+      <span><i class="swatch" style="background:#34d399"></i> Context-aware agent · +583 reward</span>
+      <span><i class="swatch" style="background:#f87171"></i> Context-blind baseline · −3429 reward</span>
+      <span><i class="swatch" style="background:#a78bfa;opacity:.5"></i> Drift active (t = 180–500s)</span>
+    </div>
+  </section>
+
+  <!-- PROBLEM -->
+  <section id="problem" class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">The problem · 2040</div>
+      <h2>It isn't tracking. It's <span class="grad">judgment under a closing window.</span></h2>
+      <p>Routine pointing is already automated — ephemeris plus a control loop aims the dish. The hard part is what happens when a link degrades mid-pass and an agent must diagnose <i>why</i> and recover <i>before the window closes.</i></p>
+    </div>
+    <div class="grid g3">
+      <div class="card reveal"><div class="ic">🛰️</div><h3>Too many satellites</h3><p>Planet Labs runs 200+ imagers, Starlink thousands more launching weekly, and the Deep Space Network operates across light-minutes where no real-time human loop exists. Every one is under pressure to cut operator headcount per pass.</p></div>
+      <div class="card reveal"><div class="ic">🔍</div><h3>Diagnosis under ambiguity</h3><p>Drift, RFI, polarization rotation, multipath, and hardware faults all look alike in the first seconds of degradation. Detecting the SNR drop is trivial; identifying the cause is not.</p></div>
+      <div class="card reveal"><div class="ic">⏱️</div><h3>Decisions against the clock</h3><p>With 400 seconds left you can hold, measure, and diagnose carefully. With 30, you snap to ephemeris and accept the cost. The right move depends on time you can't get back.</p></div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how" class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">How it works · HUD v6</div>
+      <h2>A task that <span class="grad">prompts and grades</span> — automatically.</h2>
+      <p>The environment wraps a Gymnasium satellite simulation as a HUD v6 task. The agent drives a ground-station console through MCP tools; the reward is the fraction of the pass kept above the usable SNR threshold — pure physics, no human judgment, no LLM-as-judge.</p>
+    </div>
+    <div class="steps">
+      <div>
+        <div class="step reveal"><div class="num">01</div><div><h3>Boot the pass</h3><p>A deterministic episode is built: a real-physics arc, an injected anomaly, starting pointing/frequency errors.</p></div></div>
+        <div class="step reveal"><div class="num">02</div><div><h3>Prompt the agent</h3><p>The task yields the mission brief and live telemetry. The agent sees SNR, lock, pointing error, frequency, polarization, noise temperature.</p></div></div>
+        <div class="step reveal"><div class="num">03</div><div><h3>Operate via tools</h3><p><span class="mono" style="color:var(--cyan)">take_action</span>, <span class="mono" style="color:var(--cyan)">get_telemetry</span>, <span class="mono" style="color:var(--cyan)">request_context</span> — served over an in-process MCP capability.</p></div></div>
+        <div class="step reveal"><div class="num">04</div><div><h3>Grade the world</h3><p>The pass flies out; reward = fraction above threshold (0.0–1.0). The agent can't fake signal — mispoint and the link budget shows it.</p></div></div>
+      </div>
+      <div class="code reveal">
+        <div class="hd"><i style="background:#f87171"></i><i style="background:#fbbf24"></i><i style="background:#34d399"></i> env.py</div>
+<pre><span class="c-key">@env</span>.<span class="c-fn">template</span>(id=<span class="c-str">"hold-the-link"</span>)
+<span class="c-key">async def</span> <span class="c-fn">hold_the_link</span>(anomaly=<span class="c-str">"drift"</span>, seed=<span class="c-num">0</span>):
+    <span class="c-com"># build a deterministic real-physics pass</span>
+    console = <span class="c-fn">GroundStationConsole</span>(<span class="c-fn">build_episode</span>(...))
+
+    <span class="c-com"># 1st yield → the prompt the agent acts on</span>
+    answer = <span class="c-y">yield</span> <span class="c-fn">mission_brief</span>(console)
+
+    <span class="c-com"># agent drove the console through MCP tools…</span>
+    console.<span class="c-fn">finish</span>()
+
+    <span class="c-com"># 2nd yield → the reward (% pass above threshold)</span>
+    <span class="c-y">yield</span> console.<span class="c-fn">score</span>()   <span class="c-com"># 0.0 – 1.0</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY AN AGENT -->
+  <section id="agent" class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Why an agent · not a Kalman filter</div>
+      <h2>The numbers say what's <span class="grad">possible.</span><br>Context says what's <span class="grad">correct.</span></h2>
+      <p>A bank of Kalman filters can diagnose a known anomaly on a clean signal — our own heuristic hit 98% lock on drift. What a filter cannot read is the prose a real operator lives by: mission briefs, maintenance logs, spectrum advisories, handoff coordination. That's what makes this agent-native.</p>
+    </div>
+    <div class="tablewrap reveal">
+      <table>
+        <thead><tr><th>Situation</th><th>IMM / Kalman bank</th><th>Language agent</th></tr></thead>
+        <tbody>
+          <tr><td>Known anomaly, clean signal</td><td><span class="ok">Optimal — wins</span></td><td>Competitive</td></tr>
+          <tr><td>Advisory: “RFI self-clears, don’t chase it”</td><td><span class="no">Hops frequency (wrong)</span></td><td><span class="ok">Rides it out (correct)</span></td></tr>
+          <tr><td>Log: “az servo sticky, avoid large slews”</td><td><span class="no">Large slew, risks a jam</span></td><td><span class="ok">Uses freq / polarization fixes</span></td></tr>
+          <tr><td>Brief: “continuous lock or nothing”</td><td>Maximizes average SNR</td><td><span class="ok">Trades for continuity, else hands off</span></td></tr>
+          <tr><td>A sixth, unmodeled anomaly</td><td><span class="no">Misclassifies to nearest known</span></td><td><span class="ok">Reasons from the log, adapts</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="text-align:center;color:var(--muted);margin-top:22px;font-size:.95rem">Open weights mean Gemma can be <b style="color:var(--text)">reinforcement-fine-tuned directly on this environment's reward</b> via Fireworks AI — the trained policy <i>is</i> the deliverable.</p>
+  </section>
+
+  <!-- ENVIRONMENT -->
+  <section id="env" class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">The environment</div>
+      <h2>Real orbits. A real <span class="grad">link budget.</span> Five ways it breaks.</h2>
+      <p>Episodes are generated procedurally from live TLEs, a physically-grounded link budget, and procedural anomalies. The agent never sees the anomaly parameters — it must diagnose from noisy telemetry.</p>
+    </div>
+
+    <h3 style="font-size:1.15rem;margin-bottom:18px;color:var(--muted)">Anomaly modes — distinct signatures, overlapping under noise</h3>
+    <div class="anom" style="margin-bottom:48px">
+      <div class="acard reveal"><div class="tag">Pointing</div><h3>Drift</h3><p>SNR slowly falls, az/el error grows from ephemeris. Fix: nudge the beam back.</p></div>
+      <div class="acard reveal"><div class="tag">Spectrum</div><h3>RFI burst</h3><p>Sudden drop, interference spikes the noise floor. Fix: shift frequency, narrow bandwidth.</p></div>
+      <div class="acard reveal"><div class="tag">Geometry</div><h3>Polarization</h3><p>~3 dB symmetric drop. Fix: cycle H → V → RHCP → LHCP to re-match.</p></div>
+      <div class="acard reveal"><div class="tag">Channel</div><h3>Multipath</h3><p>Rapid oscillating SNR, uncorrelated with pointing. Fix: small nudge or hold.</p></div>
+      <div class="acard reveal"><div class="tag">Hardware</div><h3>Fault</h3><p>Noise temperature rises, SNR degrades globally. Fix: narrow bandwidth or hand off.</p></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card reveal">
+        <div class="ic">📡</div>
+        <h3>Physically-grounded link budget</h3>
+        <p style="margin-bottom:16px">SNR comes from a real equation, not a lookup. If the agent mispoints, the math shows it.</p>
+        <div class="code">
+          <div class="hd"><i style="background:#f87171"></i><i style="background:#fbbf24"></i><i style="background:#34d399"></i> sim/physics.py</div>
+<pre><span class="c-com"># Gaussian beam · sinc² freq response · FSPL</span>
+g_point = <span class="c-fn">pointing_gain_loss</span>(az_err, el_err)
+g_freq  = <span class="c-fn">frequency_loss</span>(freq_offset_hz)
+g_pol   = <span class="c-fn">polarization_loss</span>(mode, true_pol)
+
+rx_dbw  = EIRP + GAIN − (FSPL + atm_loss)
+signal  = <span class="c-num">10</span>**(rx_dbw/<span class="c-num">10</span>) * g_point*g_freq*g_pol
+noise   = noise_temp*k_B*BW + interference
+<span class="c-key">return</span> <span class="c-num">10</span>*<span class="c-fn">log10</span>(signal / noise)   <span class="c-com"># dB</span></pre>
+        </div>
+      </div>
+      <div class="card reveal">
+        <div class="ic">🎛️</div>
+        <h3>24 actions · diagnose, then commit</h3>
+        <p style="margin-bottom:16px">Pointing nudges at three scales, receiver tuning, and meta-actions. The trick is probing before fixing.</p>
+        <div class="code">
+          <div class="hd"><i style="background:#f87171"></i><i style="background:#fbbf24"></i><i style="background:#34d399"></i> action space</div>
+<pre><span class="c-com"># pointing — 3 step sizes per axis</span>
+nudge_az_±{small|medium|large}
+nudge_el_±{small|medium|large}
+snap_to_ephemeris
+
+<span class="c-com"># receiver</span>
+shift_freq_±{fine|med|coarse}
+cycle_polarization
+narrow_bandwidth · widen_bandwidth
+
+<span class="c-com"># meta</span>
+hold          <span class="c-com"># measure cleanly</span>
+request_handoff   <span class="c-com"># last 20% only</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- reward -->
+    <h3 style="font-size:1.15rem;margin:48px 0 18px;color:var(--muted)">The reward — dense, asymmetric, fully verifiable</h3>
+    <div class="reward">
+      <div class="rcard reveal"><div class="v pos">+1.0</div><div class="k">per step · SNR &gt; 10 dB</div><p>Signal maintained. Accumulates to +600 over a perfect pass — a dense reward at every step, no sparsity problem.</p></div>
+      <div class="rcard reveal"><div class="v neg">−10.0</div><div class="k">per step · lock lost</div><p>10× the positive reward. One second of lock loss costs ten of good signal — prevention beats recovery.</p></div>
+      <div class="rcard reveal"><div class="v warn">−0.1 ×°</div><div class="k">per degree of slew</div><p>Movement has a cost. The agent learns to hold when signal is good and reserve big slews for emergencies.</p></div>
+    </div>
+    <p style="text-align:center;color:var(--muted-2);margin-top:22px;font-size:.92rem">Learning gradient: random agent ≈ −2500 · heuristic ≈ +450 — a ~3000-point signal for RFT to climb.</p>
+  </section>
+
+  <!-- TECH -->
+  <section class="wrap">
+    <div class="sec-head center">
+      <div class="eyebrow" style="justify-content:center">The stack</div>
+      <h2>Built on the <span class="grad">sponsors' stack.</span></h2>
+    </div>
+    <div class="tech" style="justify-content:center">
+      <div class="chip"><b>HUD v6</b><span>environment & eval</span></div>
+      <div class="chip"><b>Gemma</b><span>open-weights agent</span></div>
+      <div class="chip"><b>Fireworks AI</b><span>hosting & RFT</span></div>
+      <div class="chip"><b>Skyfield</b><span>orbital mechanics</span></div>
+      <div class="chip"><b>Gymnasium</b><span>env wrapper</span></div>
+      <div class="chip"><b>CelesTrak</b><span>live TLE data</span></div>
+      <div class="chip"><b>NumPy</b><span>physics</span></div>
+      <div class="chip"><b>FastMCP</b><span>agent tools</span></div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="wrap">
+    <div class="ctaband reveal">
+      <div class="eyebrow" style="justify-content:center">The core claim</div>
+      <h2>You can improve a model at<br>anything you can <span class="grad">verify.</span></h2>
+      <p>Here, the thing worth teaching is keeping a satellite link alive — diagnosing interference from drift from hardware fault and recovering before the pass window closes, under physics you cannot fake.</p>
+      <div class="cta-row" style="justify-content:center">
+        <a class="btn btn-primary" href="https://github.com/hud-evals/hud-blank" target="_blank" rel="noopener">HUD blank template ↗</a>
+        <a class="btn btn-ghost" href="https://docs.hud.ai/v6/core/tasks" target="_blank" rel="noopener">Read the docs ↗</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>Ground Station Calibration — RL Environment · HUD Frontier / RSI Hackathon</div>
+    <div class="mono">signal above threshold: <span style="color:var(--red)">38%</span> → <span style="color:var(--green)">100%</span></div>
+  </div>
+</footer>
+
+<script>
+  // starfield
+  (function(){
+    const c=document.getElementById('stars'),x=c.getContext('2d');
+    let w,h,stars;
+    function init(){
+      w=c.width=innerWidth;h=c.height=Math.max(innerHeight,document.body.scrollHeight);
+      const n=Math.min(260,Math.floor(w*h/9000));
+      stars=Array.from({length:n},()=>({
+        x:Math.random()*w,y:Math.random()*h,r:Math.random()*1.3+0.2,
+        a:Math.random()*0.6+0.2,tw:Math.random()*0.02+0.004,p:Math.random()*Math.PI*2
+      }));
+    }
+    function draw(){
+      x.clearRect(0,0,w,h);
+      for(const s of stars){
+        s.p+=s.tw;const a=s.a+Math.sin(s.p)*0.25;
+        x.beginPath();x.arc(s.x,s.y,s.r,0,7);
+        x.fillStyle='rgba(200,220,255,'+Math.max(0,a)+')';x.fill();
+      }
+      requestAnimationFrame(draw);
+    }
+    init();draw();
+    let t;addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(init,200)});
+  })();
+
+  // reveal on scroll
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:0.12});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  // count-up stats
+  function animateCount(el){
+    const target=+el.dataset.count, suf=el.dataset.suffix||'', dur=1300, t0=performance.now();
+    const fmt=n=>n>=1000?Math.round(n/1000)+'k':Math.round(n);
+    function tick(now){
+      const p=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-p,3);
+      el.textContent=fmt(target*e)+suf;
+      if(p<1)requestAnimationFrame(tick); else el.textContent=fmt(target)+suf;
+    }
+    requestAnimationFrame(tick);
+  }
+  const cio=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){animateCount(e.target);cio.unobserve(e.target);}});
+  },{threshold:0.5});
+  document.querySelectorAll('[data-count]').forEach(el=>cio.observe(el));
+</script>
+</body>
+</html>

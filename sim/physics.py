@@ -2,11 +2,11 @@ import numpy as np
 
 BOLTZMANN = 1.38e-23
 BANDWIDTH = 1e6        # Hz
-EIRP_DBW = 30.0        # dBW — satellite transmit EIRP
+EIRP_DBW = 12.0        # dBW — satellite transmit EIRP (small LEO smallsat)
 FREQ_HZ = 2.4e9        # S-band carrier
 ALTITUDE_KM = 600.0    # nominal LEO altitude
 BEAMWIDTH_DEG = 1.5    # Antenna half-power beamwidth
-RECEIVE_GAIN_DB = 35.0 # Ground antenna gain (dBi)
+RECEIVE_GAIN_DB = 15.0 # Ground antenna gain (dBi) — modest station
 
 
 def pointing_gain_loss(az_error_deg: float, el_error_deg: float) -> float:
@@ -64,7 +64,7 @@ def compute_snr(
     atmospheric_loss_db: float,
     elevation_deg: float = 30.0,
 ) -> float:
-    """Returns SNR in dB. Realistic range: ~5–35 dB for LEO S-band link."""
+    """Returns SNR in dB. Realistic range: ~5–20 dB for LEO S-band link."""
     g_point = pointing_gain_loss(az_error_deg, el_error_deg)
     g_freq = frequency_loss(freq_offset_hz)
     g_pol = polarization_loss(pol_mode, true_polarization)

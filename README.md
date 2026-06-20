@@ -29,14 +29,28 @@ Read order for a new reader: **PITCH → ENVIRONMENT → WHY_RL → WHY_AGENT �
 ## Code
 
 ```
-env/
+sim/                     Satellite ground-station simulation package
   physics.py             Link budget + free-space path loss → SNR
   anomalies.py           Five anomaly types + injection
   episode_generator.py   Real TLEs (CelesTrak) + Skyfield arcs + procedural anomalies
   satellite_env.py       Gymnasium environment, 24 actions, automatic reward
+env.py                   HUD v6 environment: sim wrapped as agent tools + task templates
+tasks.py                 Concrete task rows for `hud eval` / `hud sync tasks`
 test_env.py              Smoke test across easy/medium/hard
 test_specific_episode.py Deterministic episode, heuristic vs random, validation plot
 episode_test.png         Validation result (heuristic 98% lock vs random 49%)
+demo_baseline_vs_agent.py  Headline demo: context-aware vs context-blind operator
+demo_baseline_vs_agent.png Demo result (signal above threshold: baseline 38% → agent 100%)
+```
+
+## HUD v6 (RL environment)
+
+```bash
+uv sync                                       # install deps into a local venv
+hud set HUD_API_KEY=your-key-here             # get one at hud.ai/project/api-keys
+hud eval tasks.py claude --task-ids drift-medium --group 3   # run a local eval
+uv run python env.py                          # no-model smoke: boot a task, print reward
+uv run pytest tests/                          # offline unit tests
 ```
 
 ## Quickstart
