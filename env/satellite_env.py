@@ -12,6 +12,10 @@ from episode_generator import generate_episode, EpisodePlan, fetch_tles
 SNR_THRESHOLD = 10.0   # dB — minimum acceptable signal
 SNR_LOCK_MIN  = 5.0    # dB — below this, signal lock is lost
 
+TRACKING_LEAK  = 0.1   # fraction of satellite motion that leaks in as pointing error
+ACTUATOR_COST  = 0.05  # per-use cost for freq / pol / bandwidth changes (anti-thrash)
+HANDOFF_PENALTY = -5.0 # premature handoff request
+
 
 # Action indices
 ACTIONS = [
@@ -115,6 +119,8 @@ class SatelliteEnv(gym.Env):
 
         # Execute action
         slew = 0.0
+        actuator_cost = 0.0
+        handoff_penalty = 0.0
         action_name = ACTIONS[action]
 
         if action_name.startswith('nudge_az'):
@@ -138,15 +144,19 @@ class SatelliteEnv(gym.Env):
             idx = ACTIONS.index(action_name) - 13
             step = FREQ_STEP[idx] * (1 if 'pos' in action_name else -1)
             s['freq_offset'] = np.clip(s['freq_offset'] + step, -50000, 50000)
+            actuator_cost = ACTUATOR_COST
 
         elif action_name == 'cycle_polarization':
             s['pol_mode'] = (s['pol_mode'] + 1) % 4
+            actuator_cost = ACTUATOR_COST
 
         elif action_name == 'narrow_bandwidth':
             s['bandwidth_factor'] = max(0.1, s['bandwidth_factor'] * 0.5)
+            actuator_cost = ACTUATOR_COST
 
         elif action_name == 'widen_bandwidth':
             s['bandwidth_factor'] = min(4.0, s['bandwidth_factor'] * 2.0)
+            actuator_cost = ACTUATOR_COST
 
         elif action_name == 'hold':
             slew = 0.0  # explicit no-op
@@ -159,7 +169,7 @@ class SatelliteEnv(gym.Env):
                 reward = self._total_reward * 0.3
                 return obs, reward, True, False, self._get_info()
             else:
-                reward = -5.0  # penalty for premature handoff request
+                handoff_penalty = HANDOFF_PENALTY  # premature handoff request
 
         s['slew_rate'] = slew
         reward = 0.0
@@ -185,22 +195,32 @@ class SatelliteEnv(gym.Env):
         self._snr_history.append(snr_observed)
 
         # Reward
-        if snr > SNR_THRESHOLD:
+        if snr >= SNR_THRESHOLD:
             reward += 1.0
+        elif snr > SNR_LOCK_MIN:
+            # Shaped ramp across the 5–10 dB band so the agent gets a dense
+            # gradient while recovering, instead of a flat zero "dead zone".
+            reward += (snr - SNR_LOCK_MIN) / (SNR_THRESHOLD - SNR_LOCK_MIN)
         if not s['locked']:
             reward -= 10.0
         reward -= slew * 0.1
+        reward -= actuator_cost
+        reward += handoff_penalty
 
         self._total_reward += reward
         self._t += 1
 
-        # Update ephemeris tracking (satellite moves each step)
-        # Drift the expected position; az/el error is relative to true position
+        # Update ephemeris tracking (satellite moves each step).
+        # The mount's nominal tracking loop is imperfect: a fraction of the
+        # satellite's motion leaks in as pointing error the agent must correct.
+        # This makes active tracking a real task in every episode, even without
+        # an anomaly present.
         if t + 1 < ep.pass_duration:
-            az_delta = ep.ephemeris_az[t + 1] - ep.ephemeris_az[t]
+            # Shortest signed delta so azimuth wrap (359°→1°) doesn't spike.
+            az_delta = ((ep.ephemeris_az[t + 1] - ep.ephemeris_az[t] + 180) % 360) - 180
             el_delta = ep.ephemeris_el[t + 1] - ep.ephemeris_el[t]
-            # If agent hasn't corrected, error grows with satellite motion
-            # (nominal tracking assumed to follow ephemeris unless anomaly disrupts)
+            s['az_error'] += TRACKING_LEAK * az_delta
+            s['el_error'] += TRACKING_LEAK * el_delta
 
         terminated = self._t >= ep.pass_duration
         obs = self._get_obs()
