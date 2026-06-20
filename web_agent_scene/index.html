@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Satellite Agent 3D Action Scene</title>
+    <title>Satellite Calibration Episode Demo</title>
     <script type="importmap">
       {
         "imports": {
@@ -17,6 +17,74 @@
   <body>
     <main class="viewport">
       <div id="scene-root"></div>
+      <section class="hud hud--left" aria-label="Episode telemetry">
+        <div class="hud__header">
+          <p class="eyebrow">Playable episode</p>
+          <h1>Satellite calibration pass</h1>
+        </div>
+
+        <div class="phase" data-stat="phase"></div>
+
+        <div class="stat-grid">
+          <div>
+            <span>Time</span>
+            <strong data-stat="time"></strong>
+          </div>
+          <div>
+            <span>SNR</span>
+            <strong data-stat="snr"></strong>
+          </div>
+          <div>
+            <span>Lock</span>
+            <strong data-stat="lock"></strong>
+          </div>
+          <div>
+            <span>Reward</span>
+            <strong data-stat="reward"></strong>
+          </div>
+          <div>
+            <span>Az error</span>
+            <strong data-stat="az"></strong>
+          </div>
+          <div>
+            <span>El error</span>
+            <strong data-stat="el"></strong>
+          </div>
+          <div>
+            <span>Freq</span>
+            <strong data-stat="freq"></strong>
+          </div>
+          <div>
+            <span>Pol</span>
+            <strong data-stat="pol"></strong>
+          </div>
+          <div>
+            <span>Bandwidth</span>
+            <strong data-stat="bandwidth"></strong>
+          </div>
+          <div>
+            <span>Score</span>
+            <strong data-stat="score"></strong>
+          </div>
+        </div>
+
+        <div class="transport" aria-label="Episode controls">
+          <button type="button" data-run>Run</button>
+          <button type="button" data-step>Step</button>
+          <button type="button" data-reset>Reset</button>
+        </div>
+
+        <p class="active-action">Selected: <strong data-stat="action"></strong></p>
+      </section>
+
+      <section class="hud hud--right" aria-label="Agent actions">
+        <div class="hud__header">
+          <p class="eyebrow">Agent action space</p>
+          <h2>Choose next action</h2>
+        </div>
+        <div class="actions" data-actions></div>
+        <ol class="event-log" data-event-log aria-label="Episode event log"></ol>
+      </section>
     </main>
 
     <script type="module" src="./app.js"></script>
