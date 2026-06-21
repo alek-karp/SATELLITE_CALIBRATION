@@ -17,6 +17,24 @@
   <body>
     <main class="viewport">
       <div id="scene-root"></div>
+      <div class="scene-labels" aria-label="External data provenance">
+        <div
+          class="scene-label"
+          data-scene-label="orbit-data"
+          title="Real satellite orbital elements used by the Python environment to initialize the pass."
+        >
+          <strong>CelesTrak orbit data</strong>
+          <span>real satellite orbital elements</span>
+        </div>
+        <div
+          class="scene-label scene-label--track"
+          data-scene-label="computed-track"
+          title="Skyfield computes azimuth/elevation pass geometry from the CelesTrak orbit data and ground-station coordinates."
+        >
+          <strong>Computed satellite track</strong>
+          <span>Skyfield az/el from orbit data</span>
+        </div>
+      </div>
       <section class="hud hud--left" aria-label="Episode telemetry" data-panel="telemetry">
         <div class="hud__header">
           <div>
@@ -94,6 +112,6 @@
       </section>
     </main>
 
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=blue-green-earth-1"></script>
   </body>
 </html>

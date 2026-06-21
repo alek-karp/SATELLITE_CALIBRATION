@@ -37,6 +37,65 @@ body {
   inset: 0;
 }
 
+.scene-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.scene-label {
+  position: absolute;
+  display: grid;
+  min-width: 190px;
+  max-width: min(260px, calc(100vw - 32px));
+  gap: 3px;
+  padding: 9px 11px;
+  border: 1px solid rgba(97, 216, 255, 0.46);
+  border-radius: 7px;
+  background: rgba(5, 10, 16, 0.72);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.34);
+  color: var(--text);
+  opacity: 0;
+  transform: translate(-50%, -100%);
+  transition: opacity 180ms ease;
+  backdrop-filter: blur(10px);
+}
+
+.scene-label::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -15px;
+  width: 1px;
+  height: 15px;
+  background: linear-gradient(rgba(97, 216, 255, 0.72), rgba(97, 216, 255, 0));
+}
+
+.scene-label--track {
+  border-color: rgba(255, 206, 115, 0.48);
+}
+
+.scene-label--track::after {
+  background: linear-gradient(rgba(255, 206, 115, 0.72), rgba(255, 206, 115, 0));
+}
+
+.scene-label.is-visible {
+  opacity: 1;
+}
+
+.scene-label strong {
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+  line-height: 1.15;
+}
+
+.scene-label span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
 .hud {
   position: absolute;
   z-index: 2;
@@ -221,6 +280,11 @@ h2 {
 
   #scene-root {
     min-height: 100vh;
+  }
+
+  .scene-label {
+    min-width: 168px;
+    padding: 8px 10px;
   }
 
   .hud {

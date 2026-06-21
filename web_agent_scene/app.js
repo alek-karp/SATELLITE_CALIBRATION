@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { createEarth, latLonToVector } from "./models/earth.js";
+import { createEarth, latLonToVector } from "./models/earth.js?v=blue-green-earth-1";
 import { createGroundAntenna } from "./models/ground-antenna.js";
 import { createSatellite } from "./models/satellite.js";
 
@@ -43,6 +43,10 @@ const ui = {
 };
 
 const root = document.getElementById("scene-root");
+const sceneLabels = {
+  orbitData: document.querySelector("[data-scene-label='orbit-data']"),
+  computedTrack: document.querySelector("[data-scene-label='computed-track']"),
+};
 
 document.querySelectorAll("[data-panel]").forEach((panel) => {
   const panelName = panel.dataset.panel;
@@ -125,9 +129,12 @@ scene.add(satellitePivot);
 satellitePivot.rotation.x = Math.PI / 2.6;
 satellitePivot.rotation.z = 0.35;
 
+const satelliteOrbit = new THREE.Group();
+satellitePivot.add(satelliteOrbit);
+
 const { group: satelliteGroup, leftPanel, rightPanel } = createSatellite();
 satelliteGroup.position.set(7.3, 0, 0);
-satellitePivot.add(satelliteGroup);
+satelliteOrbit.add(satelliteGroup);
 
 const beamMaterial = new THREE.LineBasicMaterial({ color: 0x6ae5ff, transparent: true, opacity: 0.9 });
 const beamGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
@@ -178,6 +185,9 @@ scene.add(stars);
 
 const tmpVecA = new THREE.Vector3();
 const tmpVecB = new THREE.Vector3();
+const tmpVecC = new THREE.Vector3();
+const satelliteLabelOffset = new THREE.Vector3(0, 0.7, 0);
+const trackLabelAnchor = new THREE.Vector3(-3.4, 6.45, 0);
 const clock = new THREE.Clock();
 
 let sim = resetState();
@@ -443,6 +453,28 @@ function updateBeams() {
   });
 }
 
+function projectLabel(label, worldPosition, offsetX = 0, offsetY = -18) {
+  if (!label) return;
+
+  const projected = tmpVecC.copy(worldPosition).project(camera);
+  const isVisible = projected.z > -1 && projected.z < 1;
+  label.classList.toggle("is-visible", isVisible);
+  if (!isVisible) return;
+
+  const x = (projected.x * 0.5 + 0.5) * root.clientWidth;
+  const y = (-projected.y * 0.5 + 0.5) * root.clientHeight;
+  label.style.left = `${Math.round(x + offsetX)}px`;
+  label.style.top = `${Math.round(y + offsetY)}px`;
+}
+
+function updateSceneLabels() {
+  const satelliteWorld = satelliteGroup.getWorldPosition(tmpVecA).add(satelliteLabelOffset);
+  projectLabel(sceneLabels.orbitData, satelliteWorld, 46, -22);
+
+  const trackAnchor = tmpVecB.copy(trackLabelAnchor).applyEuler(orbitRing.rotation);
+  projectLabel(sceneLabels.computedTrack, trackAnchor, -24, 18);
+}
+
 function animate() {
   const delta = clock.getDelta();
   accumulator += delta;
@@ -456,16 +488,17 @@ function animate() {
   earth.rotation.y += delta * 0.035;
   cloudBand.rotation.y += delta * 0.08;
   atmosphere.rotation.y += delta * 0.04;
-  satellitePivot.rotation.y = progress * Math.PI * 1.38 - 0.42;
+  satelliteOrbit.rotation.z = progress * Math.PI * 1.38 - 0.42;
   satelliteGroup.rotation.y += delta * 0.9;
   leftPanel.rotation.z = Math.sin(clock.elapsedTime * 0.8) * 0.08;
   rightPanel.rotation.z = -leftPanel.rotation.z;
   azimuthPivot.rotation.y = THREE.MathUtils.degToRad(18 - sim.azError * 8);
   elevationPivot.rotation.z = THREE.MathUtils.degToRad(-32 + sim.elError * 7);
-  satelliteGroup.position.y = Math.sin(progress * Math.PI) * 0.72 + Math.sin(clock.elapsedTime * 0.55) * 0.12;
-  updateBeams();
-
+  satelliteGroup.position.x = 7.3 + Math.sin(clock.elapsedTime * 0.55) * 0.08;
   orbit.update();
+  updateBeams();
+  updateSceneLabels();
+
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
