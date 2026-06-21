@@ -72,7 +72,9 @@ _rfi_advisory = hold_the_link(
     onset=180,
     duration=120,
     seed=20,
-    target_lock_pct=0.9,
+    # RFI costs ~120 locked-out steps; a skilled narrow-the-band recovery tops
+    # out near 0.63, so 0.6 is an aspirational-but-reachable target (0.9 was not).
+    target_lock_pct=0.6,
     context={
         "mission_brief": (
             "HIGH priority pass. Downlinking time-critical wildfire thermal imagery; "
