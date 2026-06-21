@@ -10,7 +10,10 @@ const SNR_THRESHOLD = 10;
 const LOCK_MIN = 5;
 const TRACKING_LEAK = 0.055;
 const BASE_NOISE_TEMP = 150;
-const EARTH_RADIUS = 3;
+const WORLD_SCALE = 1.25;
+const EARTH_RADIUS = 3 * WORLD_SCALE;
+const ORBIT_RADIUS = 7.3 * WORLD_SCALE;
+const ANTENNA_SCALE = 0.72;
 const HORIZON_EPSILON = 0.04;
 const ORBIT_START_ANGLE = -0.42;
 const ORBIT_SWEEP_RADIANS = Math.PI * 1.38;
@@ -124,20 +127,20 @@ const fill = new THREE.PointLight(0x69d7ff, 1.1, 40);
 fill.position.set(-8, -3, -8);
 scene.add(fill);
 
-const { group: earthGroup } = createEarth();
+const { group: earthGroup } = createEarth(EARTH_RADIUS);
 scene.add(earthGroup);
 
 const orbitRing = new THREE.Mesh(
-  new THREE.TorusGeometry(7.3, 0.018, 10, 180),
+  new THREE.TorusGeometry(ORBIT_RADIUS, 0.018, 10, 180),
   new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.14 })
 );
 orbitRing.rotation.x = Math.PI / 2.6;
 orbitRing.rotation.z = 0.35;
 scene.add(orbitRing);
 
-const dishLat = THREE.MathUtils.degToRad(22);
-const dishLon = THREE.MathUtils.degToRad(28);
-const dishAnchor = latLonToVector(dishLat, dishLon, 3);
+const dishLat = THREE.MathUtils.degToRad(24.2);
+const dishLon = THREE.MathUtils.degToRad(13.5);
+const dishAnchor = latLonToVector(dishLat, dishLon, EARTH_RADIUS);
 
 const {
   group: stationGroup,
@@ -147,6 +150,7 @@ const {
 } = createGroundAntenna();
 stationGroup.position.copy(dishAnchor);
 stationGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dishAnchor.clone().normalize());
+stationGroup.scale.setScalar(ANTENNA_SCALE);
 earthGroup.add(stationGroup);
 
 const satellitePivot = new THREE.Group();
@@ -158,7 +162,7 @@ const satelliteOrbit = new THREE.Group();
 satellitePivot.add(satelliteOrbit);
 
 const { group: satelliteGroup, leftPanel, rightPanel } = createSatellite();
-satelliteGroup.position.set(7.3, 0, 0);
+satelliteGroup.position.set(ORBIT_RADIUS, 0, 0);
 satelliteOrbit.add(satelliteGroup);
 
 const beamMaterial = new THREE.LineBasicMaterial({ color: 0x6ae5ff, transparent: true, opacity: 0.9 });
@@ -315,7 +319,7 @@ const tmpVecA = new THREE.Vector3();
 const tmpVecB = new THREE.Vector3();
 const tmpVecC = new THREE.Vector3();
 const satelliteLabelOffset = new THREE.Vector3(0, 0.7, 0);
-const trackLabelAnchor = new THREE.Vector3(-3.4, 6.45, 0);
+const trackLabelAnchor = new THREE.Vector3(-3.4, 6.45, 0).multiplyScalar(WORLD_SCALE);
 const clock = new THREE.Clock();
 
 let sim = resetState();
@@ -356,7 +360,7 @@ function resetState() {
     slew: 0,
     ended: false,
     success: false,
-    log: ["Episode loaded: NOAA-19 over Goldstone, 180 second compressed pass."],
+    log: ["Episode loaded: NOAA-19 over Sahara ground station, 180 second compressed pass."],
     actionPulse: null,
   };
 }
@@ -940,7 +944,7 @@ function animate() {
   rightPanel.rotation.z = -leftPanel.rotation.z;
   azimuthPivot.rotation.y = THREE.MathUtils.degToRad(18 - sim.azError * 8);
   elevationPivot.rotation.z = THREE.MathUtils.degToRad(-32 + sim.elError * 7);
-  satelliteGroup.position.x = 7.3 + Math.sin(clock.elapsedTime * 0.55) * 0.08;
+  satelliteGroup.position.x = ORBIT_RADIUS + Math.sin(clock.elapsedTime * 0.55) * 0.08;
   orbit.update();
   updateActionPulse();
   updateBeams();

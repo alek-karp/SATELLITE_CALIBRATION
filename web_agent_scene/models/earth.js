@@ -4,11 +4,13 @@ const earthTexture = new THREE.TextureLoader().load("./assets/earth-blue-marble-
 earthTexture.colorSpace = THREE.SRGBColorSpace;
 earthTexture.anisotropy = 8;
 
-export function createEarth() {
+export function createEarth(radius = 3) {
   const group = new THREE.Group();
+  const atmosphereRadius = radius * (3.16 / 3);
+  const cloudRadius = radius * (3.06 / 3);
 
   const earth = new THREE.Mesh(
-    new THREE.SphereGeometry(3, 96, 96),
+    new THREE.SphereGeometry(radius, 96, 96),
     new THREE.MeshStandardMaterial({
       map: earthTexture,
       color: 0xffffff,
@@ -21,7 +23,7 @@ export function createEarth() {
   group.add(earth);
 
   const atmosphere = new THREE.Mesh(
-    new THREE.SphereGeometry(3.16, 64, 64),
+    new THREE.SphereGeometry(atmosphereRadius, 64, 64),
     new THREE.MeshBasicMaterial({
       color: 0x70d9ff,
       transparent: true,
@@ -32,7 +34,7 @@ export function createEarth() {
   group.add(atmosphere);
 
   const cloudBand = new THREE.Mesh(
-    new THREE.SphereGeometry(3.06, 48, 48),
+    new THREE.SphereGeometry(cloudRadius, 48, 48),
     new THREE.MeshStandardMaterial({
       color: 0xf4fbff,
       transparent: true,
