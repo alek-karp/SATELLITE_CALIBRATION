@@ -5,24 +5,40 @@ import { createGroundAntenna } from "./models/ground-antenna.js";
 import { createSatellite } from "./models/satellite.js";
 
 const POLARIZATIONS = ["H", "V", "RHCP", "LHCP"];
-const PASS_DURATION = 180;
+const PASS_DURATION = 240;
 const SNR_THRESHOLD = 10;
 const LOCK_MIN = 5;
 const TRACKING_LEAK = 0.055;
+const BASE_NOISE_TEMP = 150;
+const EARTH_RADIUS = 3;
+const HORIZON_EPSILON = 0.04;
+const ANOMALY_COLORS = {
+  drift: 0xffce73,
+  rfi: 0xff4f8b,
+  polarization: 0xb58cff,
+  multipath: 0x7af7c4,
+  hardware: 0xff7b45,
+};
 const PHASES = [
   { at: 0, text: "Acquire the pass. The agent slews onto the predicted track." },
-  { at: 28, text: "Nominal tracking. The receiver holds lock while the satellite moves." },
-  { at: 62, text: "Anomaly: polarization rotation. The agent probes, then cycles polarization." },
-  { at: 98, text: "Anomaly: antenna drift. The agent corrects pointing before lock drops." },
-  { at: 144, text: "Handoff window open. The pass transfers to the next ground station." },
+  { at: 24, text: "Nominal tracking. The receiver holds lock while the satellite moves." },
+  { at: 50, text: "Anomaly: polarization rotation. The agent probes, then cycles polarization." },
+  { at: 86, text: "Anomaly: antenna drift. The agent corrects pointing before lock drops." },
+  { at: 126, text: "Anomaly: RFI burst. The agent shifts frequency and tightens bandwidth." },
+  { at: 164, text: "Anomaly: multipath fade. The agent rides out the reflected signal." },
+  { at: 196, text: "Anomaly: hardware noise. The agent narrows bandwidth to preserve lock." },
+  { at: 222, text: "Handoff window open. The pass transfers to the next ground station." },
 ];
 
 const episode = {
   satellite: "NOAA-19",
   maxElevation: 54,
   anomalies: [
-    { kind: "polarization", onset: 62, duration: 34, truePolarization: 2 },
-    { kind: "drift", onset: 98, duration: 42, azRate: 0.075, elRate: -0.045 },
+    { kind: "polarization", onset: 50, duration: 26, truePolarization: 2 },
+    { kind: "drift", onset: 86, duration: 32, azRate: 0.075, elRate: -0.045 },
+    { kind: "rfi", onset: 126, duration: 28, severity: 0.9 },
+    { kind: "multipath", onset: 164, duration: 28, severity: 0.85, phase: 0.7 },
+    { kind: "hardware", onset: 196, duration: 28, severity: 0.75 },
   ],
 };
 
@@ -46,6 +62,11 @@ const root = document.getElementById("scene-root");
 const sceneLabels = {
   orbitData: document.querySelector("[data-scene-label='orbit-data']"),
   computedTrack: document.querySelector("[data-scene-label='computed-track']"),
+  drift: document.querySelector("[data-scene-label='drift']"),
+  polarization: document.querySelector("[data-scene-label='polarization']"),
+  rfi: document.querySelector("[data-scene-label='rfi']"),
+  multipath: document.querySelector("[data-scene-label='multipath']"),
+  hardware: document.querySelector("[data-scene-label='hardware']"),
 };
 
 document.querySelectorAll("[data-panel]").forEach((panel) => {
@@ -153,6 +174,45 @@ const signalPulses = Array.from({ length: 10 }, (_, index) => {
   return pulse;
 });
 
+const multipathBeamMaterial = new THREE.LineBasicMaterial({
+  color: ANOMALY_COLORS.multipath,
+  transparent: true,
+  opacity: 0,
+});
+const multipathBeam = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]),
+  multipathBeamMaterial
+);
+scene.add(multipathBeam);
+
+const rfiMaterial = new THREE.MeshBasicMaterial({
+  color: ANOMALY_COLORS.rfi,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+});
+const rfiBursts = Array.from({ length: 18 }, (_, index) => {
+  const burst = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.032, 0.62), rfiMaterial.clone());
+  burst.userData.offset = index / 18;
+  burst.visible = false;
+  scene.add(burst);
+  return burst;
+});
+
+const hardwareGlowMaterial = new THREE.MeshBasicMaterial({
+  color: ANOMALY_COLORS.hardware,
+  transparent: true,
+  opacity: 0,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+const hardwareGlow = new THREE.Mesh(new THREE.SphereGeometry(0.34, 24, 24), hardwareGlowMaterial);
+hardwareGlow.visible = false;
+scene.add(hardwareGlow);
+
+const hardwareLight = new THREE.PointLight(ANOMALY_COLORS.hardware, 0, 4);
+scene.add(hardwareLight);
+
 const ghostBeam = new THREE.Line(
   new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
   new THREE.LineDashedMaterial({
@@ -195,6 +255,22 @@ let accumulator = 0;
 let lastPhaseText = "";
 let finalLogged = false;
 
+function segmentIntersectsEarth(start, end) {
+  const segment = end.clone().sub(start);
+  const lengthSq = segment.lengthSq();
+  if (lengthSq === 0) return false;
+
+  const closestT = THREE.MathUtils.clamp(-start.dot(segment) / lengthSq, 0, 1);
+  const closestPoint = start.clone().add(segment.multiplyScalar(closestT));
+  return closestT > HORIZON_EPSILON && closestT < 1 - HORIZON_EPSILON && closestPoint.length() < EARTH_RADIUS;
+}
+
+function hasStationLineOfSight(stationWorld, dishWorld, satWorld) {
+  const stationNormal = stationWorld.clone().normalize();
+  const satFromStation = satWorld.clone().sub(stationWorld);
+  return satFromStation.dot(stationNormal) > 0 && !segmentIntersectsEarth(dishWorld, satWorld);
+}
+
 function resetState() {
   return {
     t: 0,
@@ -203,7 +279,7 @@ function resetState() {
     freqOffset: 280,
     polMode: 0,
     bandwidthFactor: 1,
-    noiseTemp: 150,
+    noiseTemp: BASE_NOISE_TEMP,
     locked: true,
     snr: 14,
     reward: 0,
@@ -226,6 +302,10 @@ function ephemerisAt(t) {
 
 function activeAnomalies(t) {
   return episode.anomalies.filter((a) => t >= a.onset && t < a.onset + a.duration);
+}
+
+function anomalyProgress(anomaly, t) {
+  return THREE.MathUtils.clamp((t - anomaly.onset) / Math.max(1, anomaly.duration), 0, 1);
 }
 
 function pointingLoss(azError, elError) {
@@ -252,13 +332,21 @@ function polarizationLoss(mode, trueMode) {
 function computeSnr(state, anomalies) {
   const ephem = ephemerisAt(state.t);
   const truePol = anomalies.find((a) => a.kind === "polarization")?.truePolarization ?? 0;
+  const rfi = anomalies.find((a) => a.kind === "rfi");
+  const multipath = anomalies.find((a) => a.kind === "multipath");
   const baseByElevation = 15 + 13 * Math.sin(Math.PI * Math.min(1, state.t / PASS_DURATION));
   const pointingDb = 10 * Math.log10(Math.max(pointingLoss(state.azError, state.elError), 1e-5));
   const freqDb = 10 * Math.log10(Math.max(frequencyLoss(state.freqOffset), 1e-5));
   const polDb = 10 * Math.log10(Math.max(polarizationLoss(state.polMode, truePol), 1e-5));
-  const noiseDb = 10 * Math.log10(state.noiseTemp / state.bandwidthFactor / 150);
+  const noiseDb = 10 * Math.log10(state.noiseTemp / state.bandwidthFactor / BASE_NOISE_TEMP);
+  const rfiEscape = THREE.MathUtils.clamp(Math.abs(state.freqOffset) / 1400, 0.12, 1);
+  const rfiDb = rfi ? -8.5 * (rfi.severity ?? 1) * (1 - rfiEscape) * Math.sqrt(state.bandwidthFactor) : 0;
+  const multipathWave = multipath
+    ? (1 + Math.sin((multipath.phase ?? 0) + (state.t - multipath.onset) * 0.42)) / 2
+    : 0;
+  const multipathDb = multipath ? -1.2 - 5.2 * (multipath.severity ?? 1) * multipathWave : 0;
   const horizonDb = ephem.el < 8 ? -2 : 0;
-  return baseByElevation + pointingDb + freqDb + polDb - noiseDb + horizonDb;
+  return baseByElevation + pointingDb + freqDb + polDb + rfiDb + multipathDb - noiseDb + horizonDb;
 }
 
 function executeAction(action) {
@@ -325,11 +413,15 @@ function executeAction(action) {
 function chooseScriptedAction() {
   const active = activeAnomalies(sim.t);
   const hasPolarizationAnomaly = active.some((anomaly) => anomaly.kind === "polarization");
+  const hasRfiAnomaly = active.some((anomaly) => anomaly.kind === "rfi");
+  const hasHardwareAnomaly = active.some((anomaly) => anomaly.kind === "hardware");
 
   if (sim.t / PASS_DURATION >= 0.82) return "request_handoff";
   if (sim.t === 0) return "snap_to_ephemeris";
-  if (hasPolarizationAnomaly && sim.t === 62) return "hold";
+  if (hasPolarizationAnomaly && sim.t === 50) return "hold";
   if (hasPolarizationAnomaly && sim.polMode !== 2) return "cycle_polarization";
+  if (hasRfiAnomaly && Math.abs(sim.freqOffset) < 1500) return "shift_freq_pos_coarse";
+  if ((hasRfiAnomaly || hasHardwareAnomaly) && sim.bandwidthFactor > 0.5) return "narrow_bandwidth";
 
   const axis = Math.abs(sim.azError) >= Math.abs(sim.elError) ? "az" : "el";
   const error = axis === "az" ? sim.azError : sim.elError;
@@ -337,8 +429,10 @@ function chooseScriptedAction() {
   if (magnitude > 1.2) return `nudge_${axis}_${error > 0 ? "pos" : "neg"}_large`;
   if (magnitude > 0.35) return `nudge_${axis}_${error > 0 ? "pos" : "neg"}_medium`;
   if (magnitude > 0.12) return `nudge_${axis}_${error > 0 ? "pos" : "neg"}_small`;
-  if (Math.abs(sim.freqOffset) > 120) return sim.freqOffset > 0 ? "shift_freq_neg_med" : "shift_freq_pos_med";
-  if (sim.bandwidthFactor !== 1) return sim.bandwidthFactor < 1 ? "widen_bandwidth" : "narrow_bandwidth";
+  if (!hasRfiAnomaly && Math.abs(sim.freqOffset) > 120) return sim.freqOffset > 0 ? "shift_freq_neg_med" : "shift_freq_pos_med";
+  if (!hasRfiAnomaly && !hasHardwareAnomaly && sim.bandwidthFactor !== 1) {
+    return sim.bandwidthFactor < 1 ? "widen_bandwidth" : "narrow_bandwidth";
+  }
   return "hold";
 }
 
@@ -353,10 +447,14 @@ function advanceEpisode() {
   }
 
   const anomalies = activeAnomalies(sim.t);
+  sim.noiseTemp = BASE_NOISE_TEMP;
   anomalies.forEach((anomaly) => {
     if (anomaly.kind === "drift") {
       sim.azError += anomaly.azRate;
       sim.elError += anomaly.elRate;
+    }
+    if (anomaly.kind === "hardware") {
+      sim.noiseTemp += 360 * (anomaly.severity ?? 1);
     }
   });
 
@@ -412,6 +510,8 @@ function logEpisodeEvents(anomalies) {
 
 function renderHud() {
   const phase = currentPhase().text;
+  const active = activeAnomalies(sim.t);
+  const activeKinds = new Set(active.map((anomaly) => anomaly.kind));
   ui.time.textContent = `${Math.min(sim.t, PASS_DURATION)} / ${PASS_DURATION}`;
   ui.phase.textContent = sim.ended ? (sim.success ? "Episode complete" : "Episode ended") : phase;
   ui.snr.textContent = `${sim.snr.toFixed(1)} dB`;
@@ -426,31 +526,99 @@ function renderHud() {
   ui.action.textContent = sim.lastAction.replaceAll("_", " ");
   ui.score.textContent = `${Math.round(sim.totalReward)}`;
   ui.eventLog.innerHTML = sim.log.map((entry) => `<li>${entry}</li>`).join("");
+  document.body.dataset.anomaly = active[0]?.kind ?? "none";
+  ui.az.dataset.state = activeKinds.has("drift") ? "warn" : "normal";
+  ui.el.dataset.state = activeKinds.has("drift") ? "warn" : "normal";
+  ui.freq.dataset.state = activeKinds.has("rfi") ? "bad" : "normal";
+  ui.pol.dataset.state = activeKinds.has("polarization") ? "warn" : "normal";
+  ui.bandwidth.dataset.state = activeKinds.has("rfi") || activeKinds.has("hardware") ? "warn" : "normal";
+  ui.snr.dataset.state = sim.snr < SNR_THRESHOLD ? "bad" : "good";
 }
 
 function updateBeams() {
   const dishWorld = receiverNode.getWorldPosition(tmpVecA);
   const satWorld = satelliteGroup.getWorldPosition(tmpVecB);
+  const stationWorld = stationGroup.getWorldPosition(tmpVecC);
+  const hasLineOfSight = hasStationLineOfSight(stationWorld, dishWorld, satWorld);
+  const active = activeAnomalies(sim.t);
+  const activeKinds = new Set(active.map((anomaly) => anomaly.kind));
+  const beamDirection = satWorld.clone().sub(dishWorld).normalize();
+  const side = new THREE.Vector3().crossVectors(beamDirection, camera.position.clone().sub(dishWorld).normalize());
+  if (side.lengthSq() < 0.001) side.set(0, 1, 0);
+  side.normalize();
+  const up = new THREE.Vector3().crossVectors(side, beamDirection).normalize();
   beamLine.geometry.setFromPoints([dishWorld, satWorld]);
 
-  const stationWorld = stationGroup.getWorldPosition(new THREE.Vector3());
   const predicted = stationWorld.clone().normalize().multiplyScalar(stationWorld.length() + 0.18);
-  ghostBeam.geometry.setFromPoints([predicted, satWorld]);
+  const driftOffset = activeKinds.has("drift") ? side.clone().multiplyScalar(0.26 + Math.min(0.42, Math.hypot(sim.azError, sim.elError) * 0.08)) : new THREE.Vector3();
+  ghostBeam.geometry.setFromPoints([predicted, satWorld.clone().add(driftOffset)]);
   ghostBeam.computeLineDistances();
 
   const health = THREE.MathUtils.clamp((sim.snr - LOCK_MIN) / (SNR_THRESHOLD + 10), 0.05, 1);
-  beamMaterial.opacity = sim.locked ? 0.22 + health * 0.72 : 0.08;
-  beamMaterial.color.set(sim.locked ? 0x6ae5ff : 0xff5c7c);
+  const primaryAnomaly = active[0]?.kind;
+  beamLine.visible = hasLineOfSight;
+  ghostBeam.visible = hasLineOfSight;
+  beamMaterial.opacity = hasLineOfSight ? (sim.locked ? 0.22 + health * 0.72 : 0.08) : 0;
+  beamMaterial.color.set(primaryAnomaly ? ANOMALY_COLORS[primaryAnomaly] : sim.locked ? 0x6ae5ff : 0xff5c7c);
 
   signalPulses.forEach((pulse) => {
+    if (!hasLineOfSight) {
+      pulse.visible = false;
+      return;
+    }
+
     const travel = (clock.elapsedTime * (sim.locked ? 0.38 + health * 0.62 : 0.16) + pulse.userData.offset) % 1;
     const fade = Math.sin(travel * Math.PI);
-    pulse.position.lerpVectors(dishWorld, satWorld, travel);
+    const twist = clock.elapsedTime * 4.2 + pulse.userData.offset * Math.PI * 2;
+    const polarizationOffset = activeKinds.has("polarization")
+      ? side.clone().multiplyScalar(Math.cos(twist) * 0.22 * fade).add(up.clone().multiplyScalar(Math.sin(twist) * 0.22 * fade))
+      : new THREE.Vector3();
+    pulse.position.lerpVectors(dishWorld, satWorld, travel).add(polarizationOffset);
     pulse.scale.setScalar(sim.locked ? 0.75 + fade * (0.8 + health * 0.9) : 0.45 + fade * 0.35);
     pulse.material.opacity = sim.locked ? fade * (0.28 + health * 0.68) : fade * 0.18;
-    pulse.material.color.set(sim.locked ? 0x8ff3ff : 0xff5c7c);
+    pulse.material.color.set(primaryAnomaly ? ANOMALY_COLORS[primaryAnomaly] : sim.locked ? 0x8ff3ff : 0xff5c7c);
     pulse.visible = pulse.material.opacity > 0.03;
   });
+
+  const multipath = active.find((anomaly) => anomaly.kind === "multipath");
+  if (multipath && hasLineOfSight) {
+    const progress = anomalyProgress(multipath, sim.t);
+    const reflection = dishWorld.clone().lerp(satWorld, 0.48);
+    reflection.add(up.clone().multiplyScalar(-1.0 - 0.36 * Math.sin(clock.elapsedTime * 2.4)));
+    reflection.add(side.clone().multiplyScalar(0.42 * Math.sin(clock.elapsedTime * 1.6)));
+    multipathBeam.geometry.setFromPoints([dishWorld, reflection, satWorld]);
+    multipathBeamMaterial.opacity = (0.18 + 0.32 * Math.sin(clock.elapsedTime * 5.4) ** 2) * Math.sin(progress * Math.PI);
+  } else {
+    multipathBeamMaterial.opacity = 0;
+  }
+
+  rfiBursts.forEach((burst) => {
+    const rfi = active.find((anomaly) => anomaly.kind === "rfi");
+    burst.visible = Boolean(rfi) && hasLineOfSight;
+    if (!rfi) return;
+    const travel = (clock.elapsedTime * 1.85 + burst.userData.offset) % 1;
+    const jitter = Math.sin(clock.elapsedTime * 20 + burst.userData.offset * 44);
+    burst.position.lerpVectors(dishWorld, satWorld, travel);
+    burst.position.add(side.clone().multiplyScalar(0.7 + jitter * 0.34));
+    burst.position.add(up.clone().multiplyScalar(Math.cos(clock.elapsedTime * 17 + burst.userData.offset * 21) * 0.28));
+    burst.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), side);
+    burst.scale.set(1, 1, 0.4 + Math.abs(jitter) * 1.6);
+    burst.material.opacity = 0.18 + Math.abs(jitter) * 0.46;
+  });
+
+  const hardware = active.find((anomaly) => anomaly.kind === "hardware");
+  hardwareGlow.visible = Boolean(hardware);
+  if (hardware) {
+    const pulse = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 8);
+    hardwareGlow.position.copy(dishWorld);
+    hardwareGlow.scale.setScalar(0.9 + pulse * 0.42);
+    hardwareGlow.material.opacity = 0.24 + pulse * 0.26;
+    hardwareLight.position.copy(dishWorld);
+    hardwareLight.intensity = 0.9 + pulse * 1.4;
+  } else {
+    hardwareGlow.material.opacity = 0;
+    hardwareLight.intensity = 0;
+  }
 }
 
 function projectLabel(label, worldPosition, offsetX = 0, offsetY = -18) {
@@ -467,12 +635,45 @@ function projectLabel(label, worldPosition, offsetX = 0, offsetY = -18) {
   label.style.top = `${Math.round(y + offsetY)}px`;
 }
 
+function setEffectLabel(kind, visible, worldPosition, offsetX = 0, offsetY = -18) {
+  const label = sceneLabels[kind];
+  if (!label) return;
+  if (!visible) {
+    label.classList.remove("is-visible");
+    return;
+  }
+  projectLabel(label, worldPosition, offsetX, offsetY);
+}
+
 function updateSceneLabels() {
   const satelliteWorld = satelliteGroup.getWorldPosition(tmpVecA).add(satelliteLabelOffset);
   projectLabel(sceneLabels.orbitData, satelliteWorld, 46, -22);
 
   const trackAnchor = tmpVecB.copy(trackLabelAnchor).applyEuler(orbitRing.rotation);
   projectLabel(sceneLabels.computedTrack, trackAnchor, -24, 18);
+
+  const active = activeAnomalies(sim.t);
+  const activeKinds = new Set(active.map((anomaly) => anomaly.kind));
+  const dishWorld = receiverNode.getWorldPosition(new THREE.Vector3());
+  const satWorld = satelliteGroup.getWorldPosition(new THREE.Vector3());
+  const beamDirection = satWorld.clone().sub(dishWorld).normalize();
+  const side = new THREE.Vector3().crossVectors(beamDirection, camera.position.clone().sub(dishWorld).normalize());
+  if (side.lengthSq() < 0.001) side.set(0, 1, 0);
+  side.normalize();
+  const up = new THREE.Vector3().crossVectors(side, beamDirection).normalize();
+  const beamMid = dishWorld.clone().lerp(satWorld, 0.55);
+
+  setEffectLabel("drift", activeKinds.has("drift"), satWorld.clone().add(side.clone().multiplyScalar(0.7)), 24, -20);
+  setEffectLabel("polarization", activeKinds.has("polarization"), beamMid.clone().add(up.clone().multiplyScalar(0.46)), 0, -24);
+  setEffectLabel("rfi", activeKinds.has("rfi"), beamMid.clone().add(side.clone().multiplyScalar(1.0)), 18, -18);
+  setEffectLabel(
+    "multipath",
+    activeKinds.has("multipath"),
+    dishWorld.clone().lerp(satWorld, 0.48).add(up.clone().multiplyScalar(-1.15)),
+    8,
+    28
+  );
+  setEffectLabel("hardware", activeKinds.has("hardware"), dishWorld.clone().add(up.clone().multiplyScalar(0.56)), 24, -18);
 }
 
 function animate() {

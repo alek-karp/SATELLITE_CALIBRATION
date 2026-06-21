@@ -80,6 +80,46 @@ body {
   background: linear-gradient(rgba(255, 206, 115, 0.72), rgba(255, 206, 115, 0));
 }
 
+.scene-label--drift {
+  border-color: rgba(255, 206, 115, 0.58);
+}
+
+.scene-label--drift::after {
+  background: linear-gradient(rgba(255, 206, 115, 0.74), rgba(255, 206, 115, 0));
+}
+
+.scene-label--polarization {
+  border-color: rgba(181, 140, 255, 0.62);
+}
+
+.scene-label--polarization::after {
+  background: linear-gradient(rgba(181, 140, 255, 0.74), rgba(181, 140, 255, 0));
+}
+
+.scene-label--rfi {
+  border-color: rgba(255, 79, 139, 0.64);
+}
+
+.scene-label--rfi::after {
+  background: linear-gradient(rgba(255, 79, 139, 0.78), rgba(255, 79, 139, 0));
+}
+
+.scene-label--multipath {
+  border-color: rgba(122, 247, 196, 0.58);
+}
+
+.scene-label--multipath::after {
+  background: linear-gradient(rgba(122, 247, 196, 0.74), rgba(122, 247, 196, 0));
+}
+
+.scene-label--hardware {
+  border-color: rgba(255, 123, 69, 0.64);
+}
+
+.scene-label--hardware::after {
+  background: linear-gradient(rgba(255, 123, 69, 0.78), rgba(255, 123, 69, 0));
+}
+
 .scene-label.is-visible {
   opacity: 1;
 }
@@ -238,6 +278,43 @@ h2 {
 
 [data-stat="lock"][data-state="bad"] {
   color: var(--red);
+}
+
+[data-stat][data-state="warn"] {
+  color: var(--amber);
+}
+
+[data-stat][data-state="bad"] {
+  color: var(--red);
+}
+
+[data-stat="snr"][data-state="good"] {
+  color: var(--green);
+}
+
+body[data-anomaly="rfi"] .phase {
+  border-left-color: #ff4f8b;
+  background: rgba(255, 79, 139, 0.1);
+}
+
+body[data-anomaly="drift"] .phase {
+  border-left-color: var(--amber);
+  background: rgba(255, 206, 115, 0.1);
+}
+
+body[data-anomaly="polarization"] .phase {
+  border-left-color: #b58cff;
+  background: rgba(181, 140, 255, 0.1);
+}
+
+body[data-anomaly="multipath"] .phase {
+  border-left-color: var(--green);
+  background: rgba(122, 247, 196, 0.08);
+}
+
+body[data-anomaly="hardware"] .phase {
+  border-left-color: #ff7b45;
+  background: rgba(255, 123, 69, 0.1);
 }
 
 .scripted-action {
