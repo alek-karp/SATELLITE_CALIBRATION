@@ -27,3 +27,18 @@ python3 -m http.server 8000
 ```
 
 Then visit `http://localhost:8000/web_agent_scene/`.
+
+## Data-driven playback
+
+By default the scene runs a built-in scripted simulation. It will instead
+**replay a recorded run** if `playback.json` is present in this folder, exported
+from the real `SatelliteEnv` physics:
+
+```bash
+uv run python scripts/export_playback.py
+```
+
+This writes `web_agent_scene/playback.json` (per-frame structured state plus
+episode metadata). Reload the page and the HUD/scene replay those frames. Point
+at a different file with a query param: `?playback=my_run.json`. Delete the file
+to fall back to the scripted demo.

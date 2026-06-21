@@ -5,7 +5,7 @@ import { createGroundAntenna } from "./models/ground-antenna.js";
 import { createSatellite } from "./models/satellite.js";
 
 const POLARIZATIONS = ["H", "V", "RHCP", "LHCP"];
-const PASS_DURATION = 240;
+let PASS_DURATION = 240;
 const SNR_THRESHOLD = 10;
 const LOCK_MIN = 5;
 const TRACKING_LEAK = 0.055;
@@ -30,7 +30,7 @@ const PHASES = [
   { at: 222, text: "Handoff window open. The pass transfers to the next ground station." },
 ];
 
-const episode = {
+let episode = {
   satellite: "NOAA-19",
   maxElevation: 54,
   anomalies: [
@@ -565,6 +565,7 @@ function chooseScriptedAction() {
 
 function advanceEpisode() {
   if (sim.ended) return;
+  if (playbackFrames) return advancePlayback();
 
   const action = chooseScriptedAction();
   executeAction(action);
@@ -951,5 +952,79 @@ window.addEventListener("resize", () => {
   renderer.setSize(root.clientWidth, root.clientHeight);
 });
 
+// ── Data-driven playback ─────────────────────────────────────────────────────
+// If a recorded run is present (web_agent_scene/playback.json, exported by
+// scripts/export_playback.py), replay it frame-by-frame through the real env's
+// physics instead of running the built-in scripted simulation above. Absent or
+// unreachable, the scripted demo runs unchanged.
+let playbackFrames = null;
+let playbackIndex = 0;
+
+function applyPlaybackFrame(frame) {
+  const prevAction = sim.lastAction;
+  sim.t = frame.t;
+  sim.azError = frame.azError;
+  sim.elError = frame.elError;
+  sim.freqOffset = frame.freqOffset;
+  sim.polMode = frame.polMode;
+  sim.bandwidthFactor = frame.bandwidthFactor;
+  sim.noiseTemp = frame.noiseTemp;
+  sim.snr = frame.snr;
+  sim.locked = frame.locked;
+  sim.reward = frame.reward;
+  sim.totalReward = frame.totalReward;
+  sim.lastAction = frame.action;
+  if (frame.action !== "hold" || prevAction !== "hold") startActionPulse(frame.action);
+  if (frame.action !== "hold") {
+    sim.log.unshift(`t=${frame.t}: ${frame.action.replaceAll("_", " ")}.`);
+  }
+}
+
+function advancePlayback() {
+  if (playbackIndex >= playbackFrames.length) {
+    sim.ended = true;
+    sim.success = sim.locked;
+    logEpisodeEvents(activeAnomalies(sim.t));
+    renderHud();
+    return;
+  }
+  applyPlaybackFrame(playbackFrames[playbackIndex++]);
+  logEpisodeEvents(activeAnomalies(sim.t));
+  renderHud();
+}
+
+async function loadPlayback() {
+  const params = new URLSearchParams(window.location.search);
+  const url = params.get("playback") ?? "playback.json";
+  let data;
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return; // no recording → keep the scripted demo
+    data = await res.json();
+  } catch {
+    return; // file:// or missing → keep the scripted demo
+  }
+
+  PASS_DURATION = data.meta.passDuration;
+  episode = {
+    satellite: data.meta.satellite,
+    maxElevation: data.meta.maxElevation,
+    anomalies: data.meta.anomalies,
+  };
+  playbackFrames = data.frames;
+  playbackIndex = 0;
+
+  // Restart cleanly on the recorded run.
+  sim = resetState();
+  finalLogged = false;
+  lastPhaseText = "";
+  accumulator = 0;
+  sim.log = [
+    `Replaying recorded run: ${data.meta.satellite}, ${data.frames.length} steps, score ${data.meta.score.toFixed(2)}.`,
+  ];
+  renderHud();
+}
+
 renderHud();
+loadPlayback();
 animate();
