@@ -1,0 +1,180 @@
+{
+  "timestamp": "20260621T013516Z",
+  "model": "accounts/fireworks/models/minimax-m3",
+  "anomaly": "drift",
+  "severity": 0.8,
+  "seed": 1,
+  "score": {
+    "base_lock_fraction": 0.455,
+    "efficiency_cost": 0.0182,
+    "contextual_penalty": 0,
+    "violations": {},
+    "total_slew_deg": 29.1,
+    "actuator_uses": 0,
+    "score": 0.4368
+  },
+  "decisions": [
+    {
+      "step": 0,
+      "action": "hold",
+      "reasoning": "All telemetry nominal: SNR stable at 20 dB, link locked, small pointing errors and freq offset within tolerance; holding establishes a clean baseline before any corrections.",
+      "telemetry_after": "t = 15/400 s   (time remaining: 385 s)\nSNR: 8.1 dB   trend: -0.5 dB   link: LOCKED\npointing error vs ephemeris: az +0.36\u00b0  el +0.21\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 1,
+      "action": "hold",
+      "reasoning": "Holding to establish a clean baseline before acting on the slight downward SNR trend and small pointing offset.",
+      "telemetry_after": "t = 30/400 s   (time remaining: 370 s)\nSNR: 7.7 dB   trend: -0.9 dB   link: LOCKED\npointing error vs ephemeris: az +0.42\u00b0  el +0.31\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 2,
+      "action": "nudge_az_neg_small",
+      "reasoning": "SNR is dropping (-0.9 dB/trend) with az pointing error of +0.42\u00b0, so a small negative azimuth nudge is needed to recenter on the satellite beam.",
+      "telemetry_after": "t = 45/400 s   (time remaining: 355 s)\nSNR: 9.8 dB   trend: +0.0 dB   link: LOCKED\npointing error vs ephemeris: az +0.58\u00b0  el +0.41\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 3,
+      "action": "nudge_az_neg_small",
+      "reasoning": "SNR stabilized after previous az_neg_small correction but az pointing error remains +0.58\u00b0; continuing small negative correction to reduce residual pointing offset.",
+      "telemetry_after": "t = 60/400 s   (time remaining: 340 s)\nSNR: 11.5 dB   trend: +2.6 dB   link: LOCKED\npointing error vs ephemeris: az +0.74\u00b0  el +0.51\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 4,
+      "action": "hold",
+      "reasoning": "SNR is trending strongly positive (+2.6 dB) after the recent azimuth corrections; holding allows confirmation that the improvement is stable before making further adjustments.",
+      "telemetry_after": "t = 75/400 s   (time remaining: 325 s)\nSNR: 9.9 dB   trend: -1.5 dB   link: LOCKED\npointing error vs ephemeris: az +0.80\u00b0  el +0.60\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 5,
+      "action": "nudge_az_neg_small",
+      "reasoning": "Pointing error az +0.80\u00b0 indicates antenna is offset positive; previous az negative nudges improved SNR and holding caused drift-back, so continue small negative azimuth correction.",
+      "telemetry_after": "t = 90/400 s   (time remaining: 310 s)\nSNR: 11.8 dB   trend: +1.0 dB   link: LOCKED\npointing error vs ephemeris: az +0.96\u00b0  el +0.69\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 6,
+      "action": "nudge_az_neg_small",
+      "reasoning": "SNR trending up at 11.8 dB with positive pointing error in az (+0.96\u00b0); continuing small negative nudge to converge on ephemeris while maintaining lock.",
+      "telemetry_after": "t = 105/400 s   (time remaining: 295 s)\nSNR: 11.2 dB   trend: -0.5 dB   link: LOCKED\npointing error vs ephemeris: az +1.12\u00b0  el +0.76\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 7,
+      "action": "nudge_el_neg_small",
+      "reasoning": "Elevation pointing error is +0.76\u00b0 while az nudges have stalled; correcting elevation drift addresses the unaddressed axis and may recover the SNR decline.",
+      "telemetry_after": "t = 120/400 s   (time remaining: 280 s)\nSNR: 11.3 dB   trend: -1.5 dB   link: LOCKED\npointing error vs ephemeris: az +1.18\u00b0  el +0.93\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 8,
+      "action": "nudge_az_neg_medium",
+      "reasoning": "Azimuth pointing error is +1.18\u00b0 off ephemeris with SNR dropping, needs a medium negative nudge to correct drift.",
+      "telemetry_after": "t = 135/400 s   (time remaining: 265 s)\nSNR: 10.0 dB   trend: +0.0 dB   link: LOCKED\npointing error vs ephemeris: az +1.74\u00b0  el +0.99\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 9,
+      "action": "nudge_az_pos_medium",
+      "reasoning": "Pointing error is +1.74\u00b0 in azimuth (antenna pointing too far negative) while recent actions incorrectly nudged azimuth negative, so a medium positive correction reverses the drift toward the correct beam position.",
+      "telemetry_after": "t = 150/400 s   (time remaining: 250 s)\nSNR: 11.0 dB   trend: -0.7 dB   link: LOCKED\npointing error vs ephemeris: az +1.30\u00b0  el +1.03\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 10,
+      "action": "nudge_el_neg_medium",
+      "reasoning": "Elevation pointing error is +1.03\u00b0 off ephemeris and SNR is declining; a medium negative elevation nudge targets the larger elevation offset to recover signal lock.",
+      "telemetry_after": "t = 165/400 s   (time remaining: 235 s)\nSNR: 6.0 dB   trend: +0.9 dB   link: LOCKED\npointing error vs ephemeris: az +1.96\u00b0  el +1.93\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 11,
+      "action": "hold",
+      "reasoning": "SNR trend just turned positive (+0.9 dB); holding gives a clean baseline to confirm recovery before making further pointing corrections with significant ephemeris offset.",
+      "telemetry_after": "t = 180/400 s   (time remaining: 220 s)\nSNR: 0.5 dB   trend: +0.1 dB   link: UNLOCKED\npointing error vs ephemeris: az +2.62\u00b0  el +2.31\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 12,
+      "action": "snap_to_ephemeris",
+      "reasoning": "Link is UNLOCKED at 0.5 dB with large pointing errors (+2.62\u00b0 az, +2.31\u00b0 el); snapping to ephemeris will quickly restore proper pointing with 220s remaining to recover.",
+      "telemetry_after": "t = 195/400 s   (time remaining: 205 s)\nSNR: 15.6 dB   trend: +0.2 dB   link: LOCKED\npointing error vs ephemeris: az +0.62\u00b0  el +0.35\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 13,
+      "action": "hold",
+      "reasoning": "SNR is strong (15.6 dB) and trending positive after the ephemeris snap; small residual pointing error is acceptable and nudging risks repeating the earlier 6 dB drop.",
+      "telemetry_after": "t = 210/400 s   (time remaining: 190 s)\nSNR: 12.6 dB   trend: -0.4 dB   link: LOCKED\npointing error vs ephemeris: az +1.28\u00b0  el +0.70\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 14,
+      "action": "nudge_az_neg_medium",
+      "reasoning": "Azimuth pointing error of +1.28\u00b0 is causing the SNR decline (trend -0.4 dB); correcting with a medium nudge to recenter on the target.",
+      "telemetry_after": "t = 225/400 s   (time remaining: 175 s)\nSNR: 6.9 dB   trend: +0.2 dB   link: LOCKED\npointing error vs ephemeris: az +2.44\u00b0  el +1.05\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 15,
+      "action": "nudge_az_pos_medium",
+      "reasoning": "Pointing error shows az +2.44\u00b0 indicating antenna drifted positive; SNR dropped to 6.9 dB from 12.6 dB after the previous negative nudge, so correcting back in the positive direction should recover signal toward the 15.6 dB seen after snap_to_ephemeris.",
+      "telemetry_after": "t = 240/400 s   (time remaining: 160 s)\nSNR: 3.3 dB   trend: -1.0 dB   link: UNLOCKED\npointing error vs ephemeris: az +2.60\u00b0  el +1.38\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 16,
+      "action": "snap_to_ephemeris",
+      "reasoning": "Link is UNLOCKED with rapidly declining SNR (-1.0 dB) after manual nudges failed; snapping to ephemeris is the most reliable way to recover the link given prior manual corrections worsened the signal.",
+      "telemetry_after": "t = 255/400 s   (time remaining: 145 s)\nSNR: 14.6 dB   trend: -0.4 dB   link: LOCKED\npointing error vs ephemeris: az +0.62\u00b0  el +0.30\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 17,
+      "action": "hold",
+      "reasoning": "SNR is healthy at 14.6 dB with only a minor downward trend and small pointing drift; holding establishes a clean baseline before risking another nudge that previously caused an unlock.",
+      "telemetry_after": "t = 270/400 s   (time remaining: 130 s)\nSNR: 11.1 dB   trend: -2.6 dB   link: LOCKED\npointing error vs ephemeris: az +1.28\u00b0  el +0.61\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 18,
+      "action": "nudge_az_neg_medium",
+      "reasoning": "Azimuth pointing error is +1.28\u00b0 and SNR is dropping sharply (-2.6 dB trend), so a medium negative azimuth correction will re-align with ephemeris and recover signal.",
+      "telemetry_after": "t = 285/400 s   (time remaining: 115 s)\nSNR: 5.0 dB   trend: -1.6 dB   link: LOCKED\npointing error vs ephemeris: az +2.44\u00b0  el +0.91\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 19,
+      "action": "snap_to_ephemeris",
+      "reasoning": "SNR dropped to 5.0 dB with strong negative trend; snap_to_ephemeris previously recovered link to 14.6 dB and 115s remaining allows time for a full recovery maneuver.",
+      "telemetry_after": "t = 300/400 s   (time remaining: 100 s)\nSNR: 14.0 dB   trend: +0.2 dB   link: LOCKED\npointing error vs ephemeris: az +0.62\u00b0  el +0.26\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 20,
+      "action": "hold",
+      "reasoning": "SNR recovered to 14.0 dB with positive trend after snap to ephemeris; holding to confirm stable baseline and avoid unnecessary movement with 100s remaining.",
+      "telemetry_after": "t = 315/400 s   (time remaining: 85 s)\nSNR: 10.6 dB   trend: +1.7 dB   link: LOCKED\npointing error vs ephemeris: az +1.28\u00b0  el +0.55\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 21,
+      "action": "hold",
+      "reasoning": "SNR trend is positive (+1.7 dB) after snap_to_ephemeris recovery, holding to confirm stable baseline before any further corrections with limited time remaining.",
+      "telemetry_after": "t = 330/400 s   (time remaining: 70 s)\nSNR: 7.4 dB   trend: +0.2 dB   link: LOCKED\npointing error vs ephemeris: az +1.94\u00b0  el +0.82\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 22,
+      "action": "nudge_az_neg_medium",
+      "reasoning": "Azimuth pointing error of +1.94\u00b0 is the dominant offset and correcting it should recover SNR from the post-snap decay while trend remains positive.",
+      "telemetry_after": "t = 345/400 s   (time remaining: 55 s)\nSNR: -2.4 dB   trend: -1.4 dB   link: UNLOCKED\npointing error vs ephemeris: az +3.10\u00b0  el +1.08\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 23,
+      "action": "snap_to_ephemeris",
+      "reasoning": "Link is UNLOCKED with degrading SNR and only 55s remaining \u2014 snap to ephemeris to recover pointing quickly before losing the pass.",
+      "telemetry_after": "t = 360/400 s   (time remaining: 40 s)\nSNR: 9.1 dB   trend: -1.6 dB   link: LOCKED\npointing error vs ephemeris: az +0.22\u00b0  el -0.00\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 24,
+      "action": "nudge_az_neg_small",
+      "reasoning": "Small az pointing error (+0.22\u00b0) and declining SNR trend suggest a small correction toward ephemeris may help recover signal before pass ends.",
+      "telemetry_after": "t = 375/400 s   (time remaining: 25 s)\nSNR: 5.5 dB   trend: -1.6 dB   link: LOCKED\npointing error vs ephemeris: az +0.38\u00b0  el -0.11\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 25,
+      "action": "snap_to_ephemeris",
+      "reasoning": "With only 25s left and SNR dropping after a failed nudge, snapping to ephemeris recovered 9.1 dB previously and is the fastest way to reestablish the link.",
+      "telemetry_after": "t = 390/400 s   (time remaining: 10 s)\nSNR: 7.2 dB   trend: +1.7 dB   link: LOCKED\npointing error vs ephemeris: az +0.06\u00b0  el -0.11\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00"
+    },
+    {
+      "step": 26,
+      "action": "hold",
+      "reasoning": "Only 10 seconds remain and the link is LOCKED with a positive SNR trend and minimal pointing error; holding avoids risking another dip like the previous nudge caused.",
+      "telemetry_after": "t = 400/400 s   (time remaining: 0 s)\nSNR: 6.3 dB   trend: -0.5 dB   link: LOCKED\npointing error vs ephemeris: az +0.10\u00b0  el -0.17\u00b0\nfreq offset: +50 Hz   polarization: H\nnoise temp: 120 K   bandwidth: x1.00\nPASS COMPLETE \u2014 further actions have no effect."
+    }
+  ]
+}
