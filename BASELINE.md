@@ -2,7 +2,7 @@
 
 Anchor: **Claude (Sonnet 4.6)** via `hud eval ... --group 3 --max-steps 60 --remote`.
 Each task run 3× on its fixed seed; mean shown. These are the reference the
-post-RFT Gemma checkpoints get compared against.
+post-RFT Qwen3-8B checkpoints get compared against.
 
 Date: 2026-06-20
 
@@ -30,10 +30,10 @@ Date: 2026-06-20
 
 - **hardware-medium**: flat 0.245 ×3 → no gradient. Exclude from RFT taskset until fixed.
 - **rfi-advisory**: trace-check whether Claude ignores the no-freq-hop advisory.
-- **Weak-model anchor (Gemma) pending** — needed to confirm RFT headroom (Claude high + weak model low).
+- **Weak-model anchor (Qwen3-8B) pending** — needed to confirm RFT headroom (Claude high + weak model low). Run `uv run hud eval tasks.py Qwen/Qwen3-8B --group 3`.
 
 ## Columns to add later
 
-| | Claude (above) | pre-RFT Gemma | post-RFT Gemma |
+| | Claude (above) | pre-RFT Qwen3-8B | post-RFT Qwen3-8B |
 |---|---|---|---|
 | fill in | done | — | — |

@@ -5,8 +5,9 @@ acquires, tracks, diagnoses, and recovers a degrading satellite link under reali
 orbital physics, scored automatically on signal maintained, lock continuity, and slew
 efficiency.
 
-Built for the HUD Frontier/RSI RL Environments Hackathon. Agent: **Gemma** (open
-weights, reinforcement-fine-tunable on the environment reward via Fireworks AI).
+Built for the HUD Frontier/RSI RL Environments Hackathon. Agent: **Qwen3-8B**
+(open weights, served and reinforcement-fine-tunable on the environment reward
+through the HUD gateway).
 
 ---
 
@@ -70,9 +71,9 @@ python3 test_specific_episode.py   # deterministic episode + validation plot
 
 - ✅ Environment built and validated — realistic SNR, real orbital arcs, 5 anomalies
 - ✅ Reward signal confirmed — heuristic ~+450 vs random ~-2500 (a ~3000-pt gradient)
-- ⏳ Gemma tool-use agent — in progress (see EXECUTION_PLAN.md)
+- ⏳ Qwen3-8B tool-use agent via HUD — in progress (see EXECUTION_PLAN.md)
 - ⏳ Operational-context layer — in progress (see WHY_AGENT.md)
-- ⏳ RFT on Gemma via Fireworks — stretch goal
+- ⏳ RFT on Qwen3-8B via HUD trainable models — stretch goal
 
 ---
 

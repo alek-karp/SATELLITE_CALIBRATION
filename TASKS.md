@@ -67,19 +67,20 @@ Run at least one weak/cheap model and one strong model against the same tasks.
 Use the results to confirm the taskset has useful reward spread across capability
 levels.
 
-## Fireworks/Gemma baseline
+## Qwen3-8B baseline (via HUD)
 
-Run the current Gemma agent locally for comparable decision logs:
+Run the open-weights agent through the HUD gateway to capture comparable traces:
 
 ```bash
-uv run agent/gemma_agent.py --anomaly drift --seed 1
-uv run agent/gemma_agent.py --anomaly rfi --seed 2
-uv run agent/gemma_agent.py --anomaly polarization --seed 3
-uv run agent/gemma_agent.py --anomaly multipath --seed 4
-uv run agent/gemma_agent.py --anomaly hardware --seed 5
+uv run hud eval tasks.py Qwen/Qwen3-8B --task-ids drift-medium --group 3
+uv run hud eval tasks.py Qwen/Qwen3-8B --task-ids rfi-medium --group 3
+uv run hud eval tasks.py Qwen/Qwen3-8B --task-ids polarization-medium --group 3
+uv run hud eval tasks.py Qwen/Qwen3-8B --task-ids multipath-medium --group 3
+uv run hud eval tasks.py Qwen/Qwen3-8B --task-ids hardware-medium --group 3
 ```
 
-Saved logs go to `data/runs/`.
+Inspect with `hud jobs` / `hud trace`. The legacy standalone loop
+(`agent/gemma_agent.py`, Fireworks) still writes JSON logs to `data/runs/`.
 
 ## Pre-RFT gate
 
@@ -94,10 +95,12 @@ Before training:
 If the reward changes after training starts, fork a fresh model or roll back to a
 checkpoint from before the objective change.
 
-## RFT path
+## RFT path (HUD)
 
-1. Host `agent/rft_server.py` publicly.
-2. Register it with Fireworks Eval Protocol.
-3. Run GRPO/RFT against randomized episodes.
-4. Periodically evaluate checkpoints through the HUD taskset.
+1. Fork a trainable model: `uv run hud models fork Qwen/Qwen3-8B --name satellite-qwen3-8b`.
+2. Roll out batches against the taskset with `group=` for within-group spread.
+3. Run GRPO/RFT with `TrainingClient` (`step` = `forward_backward` + `optim_step`).
+4. Watch checkpoints via `trainer.checkpoints()` / `hud models head`.
 5. Compare post-RFT checkpoints against the baseline matrix.
+
+The legacy `agent/rft_server.py` (Fireworks Eval Protocol) predates this path.

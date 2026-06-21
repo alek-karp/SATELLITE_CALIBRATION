@@ -13,8 +13,9 @@ uv run python env.py             # no-model smoke test: boots a task and prints 
 uv run python scripts/manual_rollout.py        # smoke test across easy/medium/hard
 uv run python scripts/inspect_episode.py       # heuristic vs random, generates plot
 uv run python scripts/demo_baseline_vs_agent.py  # context-aware vs context-blind demo
-uv run agent/gemma_agent.py --anomaly drift --seed 1   # run Gemma agent (requires FIREWORKS_API_KEY)
-hud eval tasks.py claude --task-ids drift-medium --group 3   # HUD eval (requires HUD_API_KEY)
+uv run hud eval tasks.py Qwen/Qwen3-8B --task-ids drift-medium --group 3   # run agent via HUD gateway (requires HUD_API_KEY)
+uv run hud eval tasks.py claude --task-ids drift-medium --group 3   # frontier-model anchor for comparison
+uv run agent/gemma_agent.py --anomaly drift --seed 1   # legacy standalone Fireworks loop (requires FIREWORKS_API_KEY)
 ```
 
 ## Architecture
@@ -32,8 +33,8 @@ sim/              Gymnasium simulation package
   anomalies.py        5 anomaly types (drift, rfi, polarization, multipath, hardware)
   episode_generator.py  Real TLEs via CelesTrak/Skyfield + procedural anomaly injection
 agent/
-  gemma_agent.py   Standalone Gemma (Fireworks AI) agent driving GroundStationConsole
-  rft_server.py    RFT training server (stretch goal)
+  gemma_agent.py   Legacy standalone Fireworks loop driving GroundStationConsole (pre-HUD)
+  rft_server.py    Fireworks RFT training server (legacy; HUD path uses trainable models)
 ```
 
 ### Key data flow
