@@ -213,18 +213,6 @@ scene.add(hardwareGlow);
 const hardwareLight = new THREE.PointLight(ANOMALY_COLORS.hardware, 0, 4);
 scene.add(hardwareLight);
 
-const ghostBeam = new THREE.Line(
-  new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
-  new THREE.LineDashedMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.32,
-    dashSize: 0.28,
-    gapSize: 0.14,
-  })
-);
-scene.add(ghostBeam);
-
 const starPositions = [];
 for (let i = 0; i < 1600; i += 1) {
   const radius = THREE.MathUtils.randFloat(18, 70);
@@ -549,15 +537,9 @@ function updateBeams() {
   const up = new THREE.Vector3().crossVectors(side, beamDirection).normalize();
   beamLine.geometry.setFromPoints([dishWorld, satWorld]);
 
-  const predicted = stationWorld.clone().normalize().multiplyScalar(stationWorld.length() + 0.18);
-  const driftOffset = activeKinds.has("drift") ? side.clone().multiplyScalar(0.26 + Math.min(0.42, Math.hypot(sim.azError, sim.elError) * 0.08)) : new THREE.Vector3();
-  ghostBeam.geometry.setFromPoints([predicted, satWorld.clone().add(driftOffset)]);
-  ghostBeam.computeLineDistances();
-
   const health = THREE.MathUtils.clamp((sim.snr - LOCK_MIN) / (SNR_THRESHOLD + 10), 0.05, 1);
   const primaryAnomaly = active[0]?.kind;
   beamLine.visible = hasLineOfSight;
-  ghostBeam.visible = hasLineOfSight;
   beamMaterial.opacity = hasLineOfSight ? (sim.locked ? 0.22 + health * 0.72 : 0.08) : 0;
   beamMaterial.color.set(primaryAnomaly ? ANOMALY_COLORS[primaryAnomaly] : sim.locked ? 0x6ae5ff : 0xff5c7c);
 
