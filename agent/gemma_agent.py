@@ -33,7 +33,7 @@ from env import (
 )
 from sim import SNR_THRESHOLD
 
-DEFAULT_MODEL = "accounts/fireworks/models/minimax-m3"
+DEFAULT_MODEL = "accounts/fireworks/models/gemma-3-27b-it"
 
 ACTIONS_LIST = "\n".join(f"  - {a}" for a in ACTIONS)
 

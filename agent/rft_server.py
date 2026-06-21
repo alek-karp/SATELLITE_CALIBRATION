@@ -4,11 +4,9 @@ Fireworks calls POST /init with a model URL and initial prompt.
 We run a full satellite pass episode, score it, and report the score
 back via FireworksTracingHttpHandler so GRPO can use it as a reward.
 
-Deploy publicly (e.g. ngrok, Modal, Railway) and register with:
-    eval-protocol create rft \
-      --base-model accounts/fireworks/models/gemma-3-27b-it \
-      --remote-server-url https://your-server.com \
-      --dataset accounts/<account>/datasets/satellite-rft
+Deploy publicly (e.g. ngrok, Modal, Railway), upload agent/eval_test.py,
+and create the RFT job with --evaluator. There is no --remote-server-url flag;
+the evaluator points to this server through EP_REMOTE_ROLLOUT_PROCESSOR_BASE_URL.
 
 Run locally:
     uv run agent/rft_server.py
@@ -121,6 +119,10 @@ async def _run_rollout(req: InitRequest, api_key: str) -> None:
                     messages=messages,
                     max_tokens=128,
                     temperature=0.7,
+                    extra_headers={
+                        "x-multi-turn-session-id": req.metadata.rollout_id,
+                        "x-session-affinity": req.metadata.rollout_id,
+                    },
                 )
                 raw = response.choices[0].message.content or ""
             except Exception as e:
