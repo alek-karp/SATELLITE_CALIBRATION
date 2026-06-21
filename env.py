@@ -118,7 +118,9 @@ class GroundStationConsole:
         self.steps_taken += 1
         # `slew_rate` is set by the gym for whatever action just ran (0 on holds).
         self.total_slew += abs(self.gym._state.get("slew_rate", 0.0))
-        if info["snr_db"] > SNR_THRESHOLD:
+        # Score off the clean physics SNR, not the noisy observed value, so the
+        # reward is deterministic for a given seed.
+        if info["snr_db_true"] > SNR_THRESHOLD:
             self.steps_above += 1
         if info["locked"]:
             self.steps_locked += 1

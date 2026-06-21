@@ -188,8 +188,12 @@ class SatelliteEnv(gym.Env):
             elevation_deg=current_elevation,
         )
 
-        # Add observation noise
+        # Add observation noise. The agent sees (and the telemetry/obs report)
+        # this noisy value; the *reward* must key off the clean physics value so
+        # the score is reproducible for a given seed — not jittered by unseeded
+        # measurement noise straddling the threshold.
         snr_observed = snr + np.random.normal(0, 1.0)
+        s['snr_true'] = float(snr)
         s['locked'] = snr > SNR_LOCK_MIN
 
         self._snr_history.append(snr_observed)
@@ -266,7 +270,8 @@ class SatelliteEnv(gym.Env):
         return {
             'satellite': ep.satellite_name,
             'timestep': self._t,
-            'snr_db': snr_now,
+            'snr_db': snr_now,                              # noisy (observed)
+            'snr_db_true': float(s.get('snr_true', snr_now)),  # clean (for reward)
             'locked': s['locked'],
             'az_error': s['az_error'],
             'el_error': s['el_error'],
