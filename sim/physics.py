@@ -7,6 +7,8 @@ FREQ_HZ = 2.4e9        # S-band carrier
 ALTITUDE_KM = 600.0    # nominal LEO altitude
 BEAMWIDTH_DEG = 3.0    # Antenna half-power beamwidth — consistent with ~15 dBi modest station
 RECEIVE_GAIN_DB = 15.0 # Ground antenna gain (dBi) — modest station
+SIGNAL_OCCUPANCY = 0.5   # fraction of nominal bandwidth the signal occupies;
+                         # narrowing the receiver below this starts clipping signal
 
 
 def pointing_gain_loss(az_error_deg: float, el_error_deg: float) -> float:
@@ -63,11 +65,24 @@ def compute_snr(
     noise_temp_k: float,
     atmospheric_loss_db: float,
     elevation_deg: float = 30.0,
+    bandwidth_factor: float = 1.0,
+    excess_noise_temp_k: float = 0.0,
 ) -> float:
-    """Returns SNR in dB. Realistic range: ~5–20 dB for LEO S-band link."""
+    """Returns SNR in dB. Realistic range: ~5–20 dB for LEO S-band link.
+
+    Noise is two-component: the in-band thermal floor (``noise_temp_k``) the
+    signal sits in, which narrowing cannot escape, plus *broadband* terms — a
+    hardware fault's excess noise (``excess_noise_temp_k``) and RFI
+    (``interference_power_w``) — which a matched/narrowed receiver rejects.
+    ``bandwidth_factor`` (1.0 = nominal) scales those broadband terms, so
+    narrowing is the correct lever against RFI / a noise spike but does nothing
+    for a pointing or polarization fault. Narrowing below ``SIGNAL_OCCUPANCY``
+    clips the signal, so there is a sweet spot rather than a free win.
+    """
     g_point = pointing_gain_loss(az_error_deg, el_error_deg)
     g_freq = frequency_loss(freq_offset_hz)
     g_pol = polarization_loss(pol_mode, true_polarization)
+    signal_capture = min(1.0, bandwidth_factor / SIGNAL_OCCUPANCY)
 
     fspl_db = free_space_path_loss_db(elevation_deg)
     atm_loss_db = atmospheric_loss_db
@@ -76,9 +91,13 @@ def compute_snr(
     # Link budget in dB
     received_power_dbw = EIRP_DBW + RECEIVE_GAIN_DB - total_loss_db
     received_power_w = 10 ** (received_power_dbw / 10)
-    received_power_w *= g_point * g_freq * g_pol
+    received_power_w *= g_point * g_freq * g_pol * signal_capture
 
-    noise_power_w = noise_temp_k * BOLTZMANN * BANDWIDTH + interference_power_w
+    noise_power_w = (
+        noise_temp_k * BOLTZMANN * BANDWIDTH                                   # in-band thermal floor (fixed)
+        + (excess_noise_temp_k * BOLTZMANN * BANDWIDTH + interference_power_w)  # broadband: hardware excess + RFI
+        * bandwidth_factor                                                     # ...rejected by narrowing
+    )
 
     if noise_power_w <= 0 or received_power_w <= 0:
         return -30.0

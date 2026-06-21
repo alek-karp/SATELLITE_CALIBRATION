@@ -107,9 +107,12 @@ class SatelliteEnv(gym.Env):
         t = self._t
         s = self._state
 
-        # Reset per-step transient effects
+        # Reset per-step transient effects. noise_temp is reset to the episode
+        # baseline so a hardware fault adds its excess fresh each step instead of
+        # accumulating unboundedly across the fault window.
         s['interference_power'] = 0.0
         s['atmospheric_loss_db'] = 0.5
+        s['noise_temp'] = ep.noise_level
         true_pol_reset = s.get('base_true_polarization', 0)
         s['true_polarization'] = true_pol_reset
 
@@ -183,9 +186,11 @@ class SatelliteEnv(gym.Env):
             pol_mode=s['pol_mode'],
             true_polarization=s['true_polarization'],
             interference_power_w=s['interference_power'],
-            noise_temp_k=s['noise_temp'] / s['bandwidth_factor'],
+            noise_temp_k=ep.noise_level,
             atmospheric_loss_db=s['atmospheric_loss_db'],
             elevation_deg=current_elevation,
+            bandwidth_factor=s['bandwidth_factor'],
+            excess_noise_temp_k=max(0.0, s['noise_temp'] - ep.noise_level),
         )
 
         # Add observation noise. The agent sees (and the telemetry/obs report)
