@@ -15,6 +15,9 @@ import argparse
 import json
 import os
 import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -54,19 +57,45 @@ Strategy:
 """
 
 
+def _build_context_summary(log: list[dict], console: GroundStationConsole) -> str:
+    """Compress episode history into a fixed-size summary (~150 tokens).
+
+    Gives the model memory of what it tried and what worked, without
+    growing the context window with every step.
+    """
+    ep = console.gym._episode
+    remaining = max(0, ep.pass_duration - console.gym._t)
+    snr_history = console.gym._snr_history
+
+    trend = ""
+    if len(snr_history) >= 3:
+        delta = snr_history[-1] - snr_history[-3]
+        trend = f"↑{delta:+.1f}" if delta > 0 else f"↓{delta:+.1f}"
+
+    lines = [f"Step {len(log)}/{ep.pass_duration // STEP_SECONDS} | {remaining}s remaining | SNR trend: {trend}"]
+
+    if log:
+        recent = log[-4:]
+        lines.append("Recent actions (oldest→newest):")
+        for r in recent:
+            snr_after = r["telemetry_after"].split("\n")[1] if "\n" in r["telemetry_after"] else ""
+            lines.append(f"  {r['action']}: {snr_after.strip()}")
+
+    return "\n".join(lines)
+
+
 def run_episode(
     console: GroundStationConsole,
     model: str = DEFAULT_MODEL,
     max_decisions: int = 60,
     verbose: bool = True,
 ) -> list[dict]:
-    """Drive one satellite pass with Gemma making decisions.
+    """Drive one satellite pass with the model making decisions.
 
     Returns a list of decision records:
       {"action": str, "reasoning": str, "telemetry_after": str}
     """
     client = Fireworks(api_key=os.environ["FIREWORKS_API_KEY"])
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     log: list[dict] = []
 
     for step in range(max_decisions):
@@ -74,8 +103,15 @@ def run_episode(
             break
 
         telemetry = console.telemetry()
-        messages.append({"role": "user", "content": f"Current telemetry:\n{telemetry}"})
+        summary = _build_context_summary(log, console)
 
+        # Fixed context: system + summary + current telemetry (~300 tokens max)
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"{summary}\n\nCurrent telemetry:\n{telemetry}"},
+        ]
+
+        time.sleep(10)  # stay under rate limit
         response = client.chat.completions.create(
             model=model,
             messages=messages,
@@ -83,7 +119,7 @@ def run_episode(
 
         raw = response.choices[0].message.content or ""
 
-        # Parse JSON from response — strip any markdown fences
+        # Parse JSON — strip markdown fences if present
         try:
             json_str = raw.strip()
             if json_str.startswith("```"):
@@ -96,12 +132,10 @@ def run_episode(
         except (json.JSONDecodeError, ValueError):
             action, reasoning = "hold", f"parse error: {raw[:80]}"
 
-        duration = STEP_SECONDS
-
         if action not in ACTIONS:
             action = "hold"
 
-        console.act(action, duration)
+        console.act(action, STEP_SECONDS)
         telemetry_after = console.telemetry()
 
         record = {"step": step, "action": action, "reasoning": reasoning, "telemetry_after": telemetry_after}
@@ -111,9 +145,6 @@ def run_episode(
             snr_line = telemetry_after.split("\n")[1] if "\n" in telemetry_after else telemetry_after
             print(f"[{step:2d}] {action:<30s}  {reasoning}")
             print(f"      → {snr_line}")
-
-        messages.append({"role": "assistant", "content": raw})
-        messages.append({"role": "user", "content": f"Result:\n{telemetry_after}"})
 
     console.finish()
     return log
@@ -163,6 +194,22 @@ def main():
     print(f"Total slew:     {breakdown['total_slew_deg']:.1f}°")
     print(f"Actuator uses:  {breakdown['actuator_uses']}")
     print(f"Decisions made: {len(log)}")
+
+    # Save run to data/runs/
+    runs_dir = Path(__file__).parent.parent / "data" / "runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    out_path = runs_dir / f"{timestamp}_{args.anomaly}_seed{args.seed}.json"
+    out_path.write_text(json.dumps({
+        "timestamp": timestamp,
+        "model": args.model,
+        "anomaly": args.anomaly,
+        "severity": args.severity,
+        "seed": args.seed,
+        "score": breakdown,
+        "decisions": log,
+    }, indent=2))
+    print(f"\nSaved → {out_path}")
 
 
 if __name__ == "__main__":

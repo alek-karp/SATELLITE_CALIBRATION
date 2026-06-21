@@ -1,5 +1,19 @@
 # AGENTS.md
 
+## Run logs
+
+Agent episode logs are saved to `data/runs/` as JSON files.
+
+Filename format: `<timestamp>_<anomaly>_seed<N>.json`
+
+Each file contains:
+- `score` — full score breakdown (base_lock_fraction, efficiency_cost, total_slew_deg, etc.)
+- `decisions` — full decision log with action, reasoning, and telemetry at each step
+
+Use these to track baseline vs post-RFT performance and debug agent behaviour.
+
+---
+
 ## Commit format
 
 ```
