@@ -33,8 +33,8 @@ def sample_anomaly(onset_range=(100, 400), severity_range=(0.3, 1.0)) -> Anomaly
     a = AnomalyState(kind=kind, onset_time=onset, duration=duration, severity=severity)
 
     if kind == 'drift':
-        a.drift_rate_az = severity * 0.05 * np.random.choice([-1, 1])
-        a.drift_rate_el = severity * 0.03 * np.random.choice([-1, 1])
+        a.drift_rate_az = severity * 0.02 * np.random.choice([-1, 1])
+        a.drift_rate_el = severity * 0.01 * np.random.choice([-1, 1])
 
     elif kind == 'rfi':
         # interference power that competes with signal noise floor

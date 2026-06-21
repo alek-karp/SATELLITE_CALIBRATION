@@ -5,7 +5,7 @@ BANDWIDTH = 1e6        # Hz
 EIRP_DBW = 12.0        # dBW — satellite transmit EIRP (small LEO smallsat)
 FREQ_HZ = 2.4e9        # S-band carrier
 ALTITUDE_KM = 600.0    # nominal LEO altitude
-BEAMWIDTH_DEG = 1.5    # Antenna half-power beamwidth
+BEAMWIDTH_DEG = 3.0    # Antenna half-power beamwidth — consistent with ~15 dBi modest station
 RECEIVE_GAIN_DB = 15.0 # Ground antenna gain (dBi) — modest station
 
 

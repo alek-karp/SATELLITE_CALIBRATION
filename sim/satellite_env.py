@@ -12,7 +12,7 @@ from episode_generator import generate_episode, EpisodePlan, fetch_tles
 SNR_THRESHOLD = 10.0   # dB — minimum acceptable signal
 SNR_LOCK_MIN  = 5.0    # dB — below this, signal lock is lost
 
-TRACKING_LEAK  = 0.1   # fraction of satellite motion that leaks in as pointing error
+TRACKING_LEAK  = 0.02  # fraction of satellite motion that leaks in as pointing error
 ACTUATOR_COST  = 0.05  # per-use cost for freq / pol / bandwidth changes (anti-thrash)
 HANDOFF_PENALTY = -5.0 # premature handoff request
 
@@ -126,13 +126,13 @@ class SatelliteEnv(gym.Env):
         if action_name.startswith('nudge_az'):
             idx = ACTIONS.index(action_name)
             delta = AZ_NUDGE[idx] * (1 if 'pos' in action_name else -1)
-            s['az_error'] -= delta
+            s['az_error'] += delta
             slew = abs(delta)
 
         elif action_name.startswith('nudge_el'):
             idx = ACTIONS.index(action_name)
             delta = EL_NUDGE[idx - 6] * (1 if 'pos' in action_name else -1)
-            s['el_error'] -= delta
+            s['el_error'] += delta
             slew = abs(delta)
 
         elif action_name == 'snap_to_ephemeris':
