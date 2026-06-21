@@ -1,5 +1,6 @@
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sim'))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, 'sim'))
 
 from satellite_env import SatelliteEnv, ACTIONS
 import numpy as np

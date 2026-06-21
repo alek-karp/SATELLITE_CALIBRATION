@@ -10,7 +10,6 @@ __pycache__/
 *.egg-info/
 tests/
 data/
+docs/
+scripts/
 *.md
-episode_test.png
-test_env.py
-test_specific_episode.py

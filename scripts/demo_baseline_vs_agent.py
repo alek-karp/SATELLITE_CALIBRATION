@@ -13,10 +13,14 @@ drift carries the signal off the dish. The context-aware operator correctly read
 it as pointing drift and nudges the beam back. Same physics, same automatic
 reward; the only difference is reaching the right diagnosis.
 
-Run:  uv run python demo_baseline_vs_agent.py
+Run:  uv run python scripts/demo_baseline_vs_agent.py
 """
 
 import os
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 
 import matplotlib
 
@@ -165,7 +169,7 @@ def main():
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    out = os.path.join(os.path.dirname(__file__), "demo_baseline_vs_agent.png")
+    out = os.path.join(ROOT, "docs", "assets", "demo_baseline_vs_agent.png")
     plt.savefig(out, dpi=140, bbox_inches="tight")
     print(f"\nPlot saved -> {out}")
 

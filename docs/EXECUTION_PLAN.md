@@ -5,7 +5,7 @@ remaining hackathon window. Goal: make it feel like a real autonomous ground-sta
 operator, while keeping the build finishable before judging.
 
 **Timing reality:** Hacking started Sat June 20, 12:30 PM. Judging starts Sun 1:30 PM.
-The environment is already built and validated (see `episode_test.png`). Remaining
+The environment is already built and validated (see `assets/episode_test.png`). Remaining
 work is the **agent**, the **operational-context layer**, and the **demo**.
 
 ---

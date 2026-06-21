@@ -3,7 +3,8 @@ Specific episode test — deterministic seed, known anomaly, heuristic agent.
 Goal: verify the environment behaves sensibly before training.
 """
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sim'))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, 'sim'))
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -208,7 +209,7 @@ ax3.legend(fontsize=8)
 ax3.grid(True, alpha=0.3)
 
 plt.tight_layout()
-out = os.path.join(os.path.dirname(__file__), 'episode_test.png')
+out = os.path.join(ROOT, 'docs', 'assets', 'episode_test.png')
 plt.savefig(out, dpi=140, bbox_inches='tight')
 print(f"\nPlot saved → {out}")
 plt.show()

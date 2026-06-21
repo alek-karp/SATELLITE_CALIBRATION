@@ -36,11 +36,14 @@ sim/                     Satellite ground-station simulation package
   satellite_env.py       Gymnasium environment, 24 actions, automatic reward
 env.py                   HUD v6 environment: sim wrapped as agent tools + task templates
 tasks.py                 Concrete task rows for `hud eval` / `hud sync tasks`
-test_env.py              Smoke test across easy/medium/hard
-test_specific_episode.py Deterministic episode, heuristic vs random, validation plot
-episode_test.png         Validation result (heuristic 98% lock vs random 49%)
-demo_baseline_vs_agent.py  Headline demo: context-aware vs context-blind operator
-demo_baseline_vs_agent.png Demo result (signal above threshold: baseline 38% → agent 100%)
+tests/                   Pytest suite (offline env, scoring, tools, served capability)
+scripts/                 Standalone scripts (run with `uv run python scripts/<name>.py`)
+  manual_rollout.py      Smoke test across easy/medium/hard
+  inspect_episode.py     Deterministic episode, heuristic vs random, validation plot
+  demo_baseline_vs_agent.py  Headline demo: context-aware vs context-blind operator
+docs/                    Design docs and generated plot assets
+  assets/episode_test.png             Validation result (heuristic 98% lock vs random 49%)
+  assets/demo_baseline_vs_agent.png   Demo result (signal above threshold: baseline 38% → agent 100%)
 ```
 
 ## HUD v6 (RL environment)
