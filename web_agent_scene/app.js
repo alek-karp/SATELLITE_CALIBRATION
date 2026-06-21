@@ -12,6 +12,8 @@ const TRACKING_LEAK = 0.055;
 const BASE_NOISE_TEMP = 150;
 const EARTH_RADIUS = 3;
 const HORIZON_EPSILON = 0.04;
+const ORBIT_START_ANGLE = -0.42;
+const ORBIT_SWEEP_RADIANS = Math.PI * 1.38;
 const ANOMALY_COLORS = {
   drift: 0xffce73,
   rfi: 0xff4f8b,
@@ -83,7 +85,8 @@ document.querySelectorAll("[data-panel]").forEach((panel) => {
     toggle.querySelector("span").textContent = isCollapsed ? "+" : "−";
   };
 
-  applyPanelState(localStorage.getItem(storageKey) === "collapsed");
+  const savedPanelState = localStorage.getItem(storageKey);
+  applyPanelState(savedPanelState ? savedPanelState === "collapsed" : true);
 
   toggle.addEventListener("click", () => {
     const isCollapsed = !panel.classList.contains("is-collapsed");
@@ -121,7 +124,7 @@ const fill = new THREE.PointLight(0x69d7ff, 1.1, 40);
 fill.position.set(-8, -3, -8);
 scene.add(fill);
 
-const { group: earthGroup, earth, atmosphere, cloudBand } = createEarth();
+const { group: earthGroup } = createEarth();
 scene.add(earthGroup);
 
 const orbitRing = new THREE.Mesh(
@@ -788,7 +791,8 @@ function updateBeams() {
   const stationWorld = stationGroup.getWorldPosition(tmpVecC);
   const hasLineOfSight = hasStationLineOfSight(stationWorld, dishWorld, satWorld);
   const active = activeAnomalies(sim.t);
-  const activeKinds = new Set(active.map((anomaly) => anomaly.kind));
+  const visibleAnomalies = hasLineOfSight ? active : [];
+  const activeKinds = new Set(visibleAnomalies.map((anomaly) => anomaly.kind));
   const beamDirection = satWorld.clone().sub(dishWorld).normalize();
   const side = new THREE.Vector3().crossVectors(beamDirection, camera.position.clone().sub(dishWorld).normalize());
   if (side.lengthSq() < 0.001) side.set(0, 1, 0);
@@ -797,7 +801,7 @@ function updateBeams() {
   beamLine.geometry.setFromPoints([dishWorld, satWorld]);
 
   const health = THREE.MathUtils.clamp((sim.snr - LOCK_MIN) / (SNR_THRESHOLD + 10), 0.05, 1);
-  const primaryAnomaly = active[0]?.kind;
+  const primaryAnomaly = visibleAnomalies[0]?.kind;
   beamLine.visible = hasLineOfSight;
   beamMaterial.opacity = hasLineOfSight ? (sim.locked ? 0.22 + health * 0.72 : 0.08) : 0;
   beamMaterial.color.set(primaryAnomaly ? ANOMALY_COLORS[primaryAnomaly] : sim.locked ? 0x6ae5ff : 0xff5c7c);
@@ -821,7 +825,7 @@ function updateBeams() {
     pulse.visible = pulse.material.opacity > 0.03;
   });
 
-  const multipath = active.find((anomaly) => anomaly.kind === "multipath");
+  const multipath = visibleAnomalies.find((anomaly) => anomaly.kind === "multipath");
   if (multipath && hasLineOfSight) {
     const progress = anomalyProgress(multipath, sim.t);
     const reflection = dishWorld.clone().lerp(satWorld, 0.48);
@@ -834,8 +838,8 @@ function updateBeams() {
   }
 
   rfiBursts.forEach((burst) => {
-    const rfi = active.find((anomaly) => anomaly.kind === "rfi");
-    burst.visible = Boolean(rfi) && hasLineOfSight;
+    const rfi = visibleAnomalies.find((anomaly) => anomaly.kind === "rfi");
+    burst.visible = Boolean(rfi);
     if (!rfi) return;
     const travel = (clock.elapsedTime * 1.85 + burst.userData.offset) % 1;
     const jitter = Math.sin(clock.elapsedTime * 20 + burst.userData.offset * 44);
@@ -847,7 +851,7 @@ function updateBeams() {
     burst.material.opacity = 0.18 + Math.abs(jitter) * 0.46;
   });
 
-  const hardware = active.find((anomaly) => anomaly.kind === "hardware");
+  const hardware = visibleAnomalies.find((anomaly) => anomaly.kind === "hardware");
   hardwareGlow.visible = Boolean(hardware);
   if (hardware) {
     const pulse = 0.5 + 0.5 * Math.sin(clock.elapsedTime * 8);
@@ -894,9 +898,12 @@ function updateSceneLabels() {
   projectLabel(sceneLabels.computedTrack, trackAnchor, -24, 18);
 
   const active = activeAnomalies(sim.t);
-  const activeKinds = new Set(active.map((anomaly) => anomaly.kind));
   const dishWorld = receiverNode.getWorldPosition(new THREE.Vector3());
   const satWorld = satelliteGroup.getWorldPosition(new THREE.Vector3());
+  const stationWorld = stationGroup.getWorldPosition(new THREE.Vector3());
+  const hasLineOfSight = hasStationLineOfSight(stationWorld, dishWorld, satWorld);
+  const visibleAnomalies = hasLineOfSight ? active : [];
+  const activeKinds = new Set(visibleAnomalies.map((anomaly) => anomaly.kind));
   const beamDirection = satWorld.clone().sub(dishWorld).normalize();
   const side = new THREE.Vector3().crossVectors(beamDirection, camera.position.clone().sub(dishWorld).normalize());
   if (side.lengthSq() < 0.001) side.set(0, 1, 0);
@@ -927,10 +934,7 @@ function animate() {
   }
 
   const progress = Math.min(1, sim.t / PASS_DURATION);
-  earth.rotation.y += delta * 0.035;
-  cloudBand.rotation.y += delta * 0.08;
-  atmosphere.rotation.y += delta * 0.04;
-  satelliteOrbit.rotation.z = progress * Math.PI * 1.38 - 0.42;
+  satelliteOrbit.rotation.z = ORBIT_START_ANGLE + progress * ORBIT_SWEEP_RADIANS;
   satelliteGroup.rotation.y += delta * 0.9;
   leftPanel.rotation.z = Math.sin(clock.elapsedTime * 0.8) * 0.08;
   rightPanel.rotation.z = -leftPanel.rotation.z;
