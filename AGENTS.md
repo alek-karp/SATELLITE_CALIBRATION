@@ -30,6 +30,42 @@ Local eval:
 uv run hud eval tasks.py claude --task-ids drift-medium --group 3
 ```
 
+Full Qwen/HUD Gateway eval:
+
+```bash
+uv run hud eval tasks.py Qwen/Qwen3-8B \
+  --gateway \
+  --all \
+  --group 3 \
+  --max-steps 60 \
+  --max-concurrent 5 \
+  --auto-respond \
+  -y
+```
+
+Evaluate a trained HUD model fork with the same settings:
+
+```bash
+uv run hud eval tasks.py satellite-qwen3-8b \
+  --gateway \
+  --all \
+  --group 3 \
+  --max-steps 60 \
+  --max-concurrent 5 \
+  --auto-respond \
+  -y
+```
+
+Use `--auto-respond` consistently for Qwen/tool-use comparisons. Without it,
+Qwen may return text instead of an OpenAI-compatible tool call, HUD treats the
+run as complete, and traces can jump from `setup` straight to `evaluate` with no
+`get_telemetry` / `take_action` steps. Compare base vs trained runs only when
+both use the same auto-respond setting.
+
+Keep local `--max-concurrent` capped. The default can be 30, which may exhaust
+local MCP/socket resources during `--all --group 3` runs. Start with 5 and raise
+gradually only if the machine stays stable.
+
 Platform deploy/sync:
 
 ```bash
