@@ -15,7 +15,7 @@ const EARTH_RADIUS = 3 * WORLD_SCALE;
 const ORBIT_RADIUS = 7.3 * WORLD_SCALE;
 const ANTENNA_SCALE = 0.72;
 const HORIZON_EPSILON = 0.04;
-const ORBIT_START_ANGLE = -0.42;
+const ORBIT_START_ANGLE = 0;
 const ORBIT_SWEEP_RADIANS = Math.PI * 1.38;
 const ANOMALY_COLORS = {
   drift: 0xffce73,
@@ -130,17 +130,22 @@ scene.add(fill);
 const { group: earthGroup } = createEarth(EARTH_RADIUS);
 scene.add(earthGroup);
 
+const dishLat = THREE.MathUtils.degToRad(39);
+const dishLon = THREE.MathUtils.degToRad(98);
+const dishAnchor = latLonToVector(dishLat, dishLon, EARTH_RADIUS);
+const orbitXAxis = dishAnchor.clone().normalize();
+const orbitYAxis = new THREE.Vector3(0, 1, 0).cross(orbitXAxis).normalize();
+const orbitZAxis = new THREE.Vector3().crossVectors(orbitXAxis, orbitYAxis).normalize();
+const orbitFrameQuaternion = new THREE.Quaternion().setFromRotationMatrix(
+  new THREE.Matrix4().makeBasis(orbitXAxis, orbitYAxis, orbitZAxis)
+);
+
 const orbitRing = new THREE.Mesh(
   new THREE.TorusGeometry(ORBIT_RADIUS, 0.018, 10, 180),
   new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.14 })
 );
-orbitRing.rotation.x = Math.PI / 2.6;
-orbitRing.rotation.z = 0.35;
+orbitRing.quaternion.copy(orbitFrameQuaternion);
 scene.add(orbitRing);
-
-const dishLat = THREE.MathUtils.degToRad(24.2);
-const dishLon = THREE.MathUtils.degToRad(13.5);
-const dishAnchor = latLonToVector(dishLat, dishLon, EARTH_RADIUS);
 
 const {
   group: stationGroup,
@@ -155,8 +160,7 @@ earthGroup.add(stationGroup);
 
 const satellitePivot = new THREE.Group();
 scene.add(satellitePivot);
-satellitePivot.rotation.x = Math.PI / 2.6;
-satellitePivot.rotation.z = 0.35;
+satellitePivot.quaternion.copy(orbitFrameQuaternion);
 
 const satelliteOrbit = new THREE.Group();
 satellitePivot.add(satelliteOrbit);
@@ -360,7 +364,7 @@ function resetState() {
     slew: 0,
     ended: false,
     success: false,
-    log: ["Episode loaded: NOAA-19 over Sahara ground station, 180 second compressed pass."],
+    log: ["Episode loaded: NOAA-19 over North America ground station, 180 second compressed pass."],
     actionPulse: null,
   };
 }
@@ -898,7 +902,7 @@ function updateSceneLabels() {
   const satelliteWorld = satelliteGroup.getWorldPosition(tmpVecA).add(satelliteLabelOffset);
   projectLabel(sceneLabels.orbitData, satelliteWorld, 46, -22);
 
-  const trackAnchor = tmpVecB.copy(trackLabelAnchor).applyEuler(orbitRing.rotation);
+  const trackAnchor = tmpVecB.copy(trackLabelAnchor).applyQuaternion(orbitRing.quaternion);
   projectLabel(sceneLabels.computedTrack, trackAnchor, -24, 18);
 
   const active = activeAnomalies(sim.t);
