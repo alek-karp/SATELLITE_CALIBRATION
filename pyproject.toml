@@ -9,6 +9,10 @@ dependencies = [
     "numpy>=1.26",
     "gymnasium>=0.29",
     "skyfield>=1.49",
+    "fireworks-ai>=0.19.20",
+    "eval-protocol>=0.3.0",
+    "uvicorn>=0.49.0",
+    "fastapi>=0.138.0",
 ]
 
 [dependency-groups]
