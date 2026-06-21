@@ -44,6 +44,9 @@ _drift_easy = hold_the_link(
 )
 _drift_easy.slug = "drift-easy"
 
+# Hard but solvable: do-nothing scores ~0.0, a skilled tracker ~0.42. The earlier
+# noise_level=320/max_el=28 combo kept SNR under threshold for every policy (an
+# unwinnable "link too weak" pass, not a hard-drift pass), so it taught nothing.
 _drift_hard = hold_the_link(
     anomaly="drift",
     severity=1.0,
@@ -51,8 +54,8 @@ _drift_hard = hold_the_link(
     duration=300,
     init_az_error=1.5,
     init_el_error=0.8,
-    noise_level=320.0,
-    max_elevation=28.0,
+    noise_level=180.0,
+    max_elevation=40.0,
     seed=12,
 )
 _drift_hard.slug = "drift-hard"
