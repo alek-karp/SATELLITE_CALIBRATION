@@ -16,6 +16,10 @@ Standalone browser demo for watching a hardcoded ground-station episode play thr
 - The scripted agent slews onto the pass, corrects polarization rotation, recovers from pointing drift, and requests final handoff.
 - The HUD shows the current action and telemetry as the pass runs.
 
+## Assets
+
+- `assets/earth-blue-marble-2048.jpg` is NASA Earth Observatory Blue Marble imagery.
+
 ## Run
 
 Open `index.html` in a browser.
