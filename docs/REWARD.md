@@ -55,21 +55,27 @@ verifiable as the base.
 
 ## Observed reward landscape (deterministic, seed-fixed)
 
-Measured floor (do-nothing) and skilled ceiling (heuristic tracker), console score:
+Measured floor (do-nothing) and skilled ceiling (track + the correct fix per
+anomaly), console score. Every task rewards skill over passivity:
 
-| task | do-nothing | heuristic | gradient |
-|---|---|---|---|
-| drift-medium | 0.27 | 0.81 | large |
-| drift-easy | 0.47 | 0.93 | large |
-| servo-sticky | 0.18 | 0.80 | large |
-| drift-hard | 0.00 | 0.42 | large (hard) |
-| polarization-medium | 0.72 | 0.83+ | moderate (pol-aware policy higher) |
-| clean-pass | 0.88 | 0.94 | small (trivial anchor) |
-| rfi / multipath / hardware | 0.24–0.72 | ≈ flat | **little/none — no working mitigation lever** |
+| task | do-nothing | skilled | gradient | correct fix |
+|---|---|---|---|---|
+| polarization-medium | 0.18 | 0.82 | +0.64 | cycle polarization H→V |
+| servo-sticky | 0.18 | 0.83 | +0.65 | frequent medium nudges (no large slew) |
+| drift-easy | 0.47 | 0.93 | +0.46 | track pointing |
+| drift-medium | 0.27 | 0.70 | +0.43 | track pointing |
+| hardware-medium | 0.46 | 0.83 | +0.37 | narrow bandwidth |
+| drift-hard | 0.00 | 0.35 | +0.35 | track pointing (hard geometry) |
+| rfi-advisory | 0.37 | 0.63 | +0.25 | narrow bandwidth, do NOT freq-hop |
+| multipath-medium | 0.72 | 0.83 | +0.10 | track; ride out the fade (no actuator fix) |
+| rfi-medium | 0.52 | 0.63 | +0.10 | narrow bandwidth |
+| clean-pass | 0.88 | 0.94 | +0.05 | track (trivial curriculum anchor) |
 
-The drift family carries the real skill gradient. The RFI/multipath/hardware
-anomalies currently lack a working mitigation in the physics model; see the
-open-issues note in the project plan.
+`narrow_bandwidth` is a real lever: it rejects the broadband terms (RFI and a
+hardware noise spike) but not in-band thermal, and clips the signal if narrowed
+past `SIGNAL_OCCUPANCY` — so it is the correct fix for RFI/hardware and useless
+for pointing/polarization. Multipath is a signal fade with no actuator fix (ride
+it out); clean-pass is the deliberately-trivial curriculum floor.
 
 ## What this reward does NOT measure
 
