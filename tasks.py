@@ -18,8 +18,11 @@ _drift.slug = "drift-medium"
 _rfi = hold_the_link(anomaly="rfi", severity=0.8, onset=180, duration=120, seed=2)
 _rfi.slug = "rfi-medium"
 
+# Polarization shift persists to pass end (duration covers onset→600): the agent
+# cycles H→V once to re-acquire, and that fix stays correct — a transient shift
+# would punish the fix when it reverted. See env._make_anomaly.
 _polarization = hold_the_link(
-    anomaly="polarization", severity=0.9, onset=160, duration=200, seed=3
+    anomaly="polarization", severity=0.9, onset=160, duration=440, seed=3
 )
 _polarization.slug = "polarization-medium"
 

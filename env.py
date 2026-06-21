@@ -41,6 +41,11 @@ CONTEXT_COST = 5           # sim seconds spent fetching an operational-context r
 HOLD_IDX = ACTIONS.index("hold")
 POL_NAMES = ["H", "V", "RHCP", "LHCP"]
 
+# RFI interference power per unit severity (watts). Calibrated so a severe RFI
+# burst degrades the link below threshold but stays *recoverable* by narrowing
+# the receiver band — not so strong it obliterates the signal regardless.
+RFI_POWER_SCALE = 2e-14
+
 # --- efficiency scoring -----------------------------------------------------
 # The base score is "fraction of the pass above the usable SNR threshold". On
 # top of that we charge for *how* the link was held: needless antenna slew and
@@ -237,9 +242,13 @@ def _make_anomaly(
         a.drift_rate_az = severity * 0.05 * rng.choice([-1, 1])
         a.drift_rate_el = severity * 0.03 * rng.choice([-1, 1])
     elif kind == "rfi":
-        a.rfi_power_w = severity * 1e-10
+        a.rfi_power_w = severity * RFI_POWER_SCALE
     elif kind == "polarization":
-        a.true_polarization = int(rng.choice([1, 2, 3]))
+        # The station starts on H (mode 0). Inject the orthogonal linear pol (V),
+        # which fully nulls the signal (a circular mismatch only costs ~3 dB and
+        # never drops below threshold, so it wouldn't be a task). The agent must
+        # recognize the signature and cycle polarization to re-acquire.
+        a.true_polarization = 1
     elif kind == "multipath":
         a.multipath_phase = float(rng.uniform(0, 2 * np.pi))
     elif kind == "hardware":
