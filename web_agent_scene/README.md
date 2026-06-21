@@ -1,6 +1,6 @@
 # Satellite Calibration Episode Demo
 
-Standalone browser demo for playing through a hardcoded ground-station episode.
+Standalone browser demo for watching a hardcoded ground-station episode play through end to end.
 
 ## What it shows
 
@@ -8,14 +8,13 @@ Standalone browser demo for playing through a hardcoded ground-station episode.
 - Earth with a surface-mounted receiver antenna
 - A live beam between antenna and satellite
 - Telemetry for SNR, lock, pointing error, tuning state, reward, and score
-- Buttons for the 24 environment actions from `ACTIONS.md`
+- A scripted agent that performs acquisition, anomaly recovery, tracking, and handoff
 
-## How to play
+## Demo arc
 
-- Press `Run` to let the episode advance automatically, or `Step` to advance one tick.
-- Choose the action the agent should take on the next tick.
-- Keep SNR above 10 dB and preserve lock through acquisition, anomaly recovery, tracking, and final handoff.
-- `request_handoff` is only accepted during the final 20% of the pass.
+- The episode starts automatically.
+- The scripted agent slews onto the pass, corrects polarization rotation, recovers from pointing drift, and requests final handoff.
+- The HUD shows the current action and telemetry as the pass runs.
 
 ## Run
 

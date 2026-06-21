@@ -4,44 +4,17 @@ import { createEarth, latLonToVector } from "./models/earth.js";
 import { createGroundAntenna } from "./models/ground-antenna.js";
 import { createSatellite } from "./models/satellite.js";
 
-const ACTIONS = [
-  ["nudge_az_pos_small", "Az +0.1"],
-  ["nudge_az_neg_small", "Az -0.1"],
-  ["nudge_az_pos_medium", "Az +0.5"],
-  ["nudge_az_neg_medium", "Az -0.5"],
-  ["nudge_az_pos_large", "Az +2.0"],
-  ["nudge_az_neg_large", "Az -2.0"],
-  ["nudge_el_pos_small", "El +0.1"],
-  ["nudge_el_neg_small", "El -0.1"],
-  ["nudge_el_pos_medium", "El +0.5"],
-  ["nudge_el_neg_medium", "El -0.5"],
-  ["nudge_el_pos_large", "El +2.0"],
-  ["nudge_el_neg_large", "El -2.0"],
-  ["snap_to_ephemeris", "Snap"],
-  ["shift_freq_pos_fine", "Freq +10"],
-  ["shift_freq_neg_fine", "Freq -10"],
-  ["shift_freq_pos_med", "Freq +100"],
-  ["shift_freq_neg_med", "Freq -100"],
-  ["shift_freq_pos_coarse", "Freq +1k"],
-  ["shift_freq_neg_coarse", "Freq -1k"],
-  ["cycle_polarization", "Pol"],
-  ["narrow_bandwidth", "Narrow"],
-  ["widen_bandwidth", "Widen"],
-  ["hold", "Hold"],
-  ["request_handoff", "Handoff"],
-];
-
 const POLARIZATIONS = ["H", "V", "RHCP", "LHCP"];
 const PASS_DURATION = 180;
 const SNR_THRESHOLD = 10;
 const LOCK_MIN = 5;
 const TRACKING_LEAK = 0.055;
 const PHASES = [
-  { at: 0, text: "Acquire the pass. Bring pointing error down and hold lock." },
-  { at: 28, text: "Nominal tracking. Keep SNR above 10 dB while the satellite moves." },
-  { at: 62, text: "Anomaly: polarization rotation. Try Hold, then cycle polarization." },
-  { at: 98, text: "Anomaly: antenna drift. Correct azimuth and elevation before lock drops." },
-  { at: 144, text: "Handoff window open. Request handoff to finish the episode." },
+  { at: 0, text: "Acquire the pass. The agent slews onto the predicted track." },
+  { at: 28, text: "Nominal tracking. The receiver holds lock while the satellite moves." },
+  { at: 62, text: "Anomaly: polarization rotation. The agent probes, then cycles polarization." },
+  { at: 98, text: "Anomaly: antenna drift. The agent corrects pointing before lock drops." },
+  { at: 144, text: "Handoff window open. The pass transfers to the next ground station." },
 ];
 
 const episode = {
@@ -67,13 +40,31 @@ const ui = {
   action: document.querySelector("[data-stat='action']"),
   score: document.querySelector("[data-stat='score']"),
   eventLog: document.querySelector("[data-event-log]"),
-  actions: document.querySelector("[data-actions]"),
-  run: document.querySelector("[data-run]"),
-  step: document.querySelector("[data-step]"),
-  reset: document.querySelector("[data-reset]"),
 };
 
 const root = document.getElementById("scene-root");
+
+document.querySelectorAll("[data-panel]").forEach((panel) => {
+  const panelName = panel.dataset.panel;
+  const toggle = panel.querySelector("[data-panel-toggle]");
+  if (!panelName || !toggle) return;
+
+  const storageKey = `satellite-demo-panel-${panelName}`;
+  const applyPanelState = (isCollapsed) => {
+    panel.classList.toggle("is-collapsed", isCollapsed);
+    toggle.setAttribute("aria-expanded", String(!isCollapsed));
+    toggle.setAttribute("aria-label", `${isCollapsed ? "Expand" : "Collapse"} ${panelName} panel`);
+    toggle.querySelector("span").textContent = isCollapsed ? "+" : "−";
+  };
+
+  applyPanelState(localStorage.getItem(storageKey) === "collapsed");
+
+  toggle.addEventListener("click", () => {
+    const isCollapsed = !panel.classList.contains("is-collapsed");
+    applyPanelState(isCollapsed);
+    localStorage.setItem(storageKey, isCollapsed ? "collapsed" : "expanded");
+  });
+});
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x02050a);
@@ -178,9 +169,7 @@ const tmpVecB = new THREE.Vector3();
 const clock = new THREE.Clock();
 
 let sim = resetState();
-let running = false;
 let accumulator = 0;
-let selectedAction = "hold";
 let lastPhaseText = "";
 let finalLogged = false;
 
@@ -311,10 +300,31 @@ function executeAction(action) {
   }
 }
 
+function chooseScriptedAction() {
+  const active = activeAnomalies(sim.t);
+  const hasPolarizationAnomaly = active.some((anomaly) => anomaly.kind === "polarization");
+
+  if (sim.t / PASS_DURATION >= 0.82) return "request_handoff";
+  if (sim.t === 0) return "snap_to_ephemeris";
+  if (hasPolarizationAnomaly && sim.t === 62) return "hold";
+  if (hasPolarizationAnomaly && sim.polMode !== 2) return "cycle_polarization";
+
+  const axis = Math.abs(sim.azError) >= Math.abs(sim.elError) ? "az" : "el";
+  const error = axis === "az" ? sim.azError : sim.elError;
+  const magnitude = Math.abs(error);
+  if (magnitude > 1.2) return `nudge_${axis}_${error > 0 ? "pos" : "neg"}_large`;
+  if (magnitude > 0.35) return `nudge_${axis}_${error > 0 ? "pos" : "neg"}_medium`;
+  if (magnitude > 0.12) return `nudge_${axis}_${error > 0 ? "pos" : "neg"}_small`;
+  if (Math.abs(sim.freqOffset) > 120) return sim.freqOffset > 0 ? "shift_freq_neg_med" : "shift_freq_pos_med";
+  if (sim.bandwidthFactor !== 1) return sim.bandwidthFactor < 1 ? "widen_bandwidth" : "narrow_bandwidth";
+  return "hold";
+}
+
 function advanceEpisode() {
   if (sim.ended) return;
 
-  executeAction(selectedAction);
+  const action = chooseScriptedAction();
+  executeAction(action);
   if (sim.ended) {
     renderHud();
     return;
@@ -340,7 +350,7 @@ function advanceEpisode() {
   sim.reward = sim.snr >= SNR_THRESHOLD ? 1 : Math.max(-10, (sim.snr - LOCK_MIN) / (SNR_THRESHOLD - LOCK_MIN));
   if (!sim.locked) sim.reward = -10;
   sim.reward -= sim.slew * 0.1;
-  if (selectedAction.includes("freq") || selectedAction === "cycle_polarization" || selectedAction.includes("bandwidth")) {
+  if (action.includes("freq") || action === "cycle_polarization" || action.includes("bandwidth")) {
     sim.reward -= 0.05;
   }
   sim.totalReward += sim.reward;
@@ -391,15 +401,9 @@ function renderHud() {
   ui.freq.textContent = `${sim.freqOffset >= 0 ? "+" : ""}${Math.round(sim.freqOffset)} Hz`;
   ui.pol.textContent = POLARIZATIONS[sim.polMode];
   ui.bandwidth.textContent = `${sim.bandwidthFactor.toFixed(2)}x`;
-  ui.action.textContent = selectedAction.replaceAll("_", " ");
+  ui.action.textContent = sim.lastAction.replaceAll("_", " ");
   ui.score.textContent = `${Math.round(sim.totalReward)}`;
-  ui.run.textContent = running ? "Pause" : "Run";
   ui.eventLog.innerHTML = sim.log.map((entry) => `<li>${entry}</li>`).join("");
-
-  document.querySelectorAll("[data-action]").forEach((button) => {
-    button.classList.toggle("is-selected", button.dataset.action === selectedAction);
-    button.disabled = sim.ended;
-  });
 }
 
 function updateBeams() {
@@ -422,10 +426,9 @@ function animate() {
   const delta = clock.getDelta();
   accumulator += delta;
 
-  if (running && accumulator >= 0.72) {
+  if (!sim.ended && accumulator >= 0.42) {
     accumulator = 0;
     advanceEpisode();
-    if (sim.ended) running = false;
   }
 
   const progress = Math.min(1, sim.t / PASS_DURATION);
@@ -448,57 +451,11 @@ function animate() {
   requestAnimationFrame(animate);
 }
 
-function renderActions() {
-  ui.actions.innerHTML = ACTIONS.map(
-    ([action, label]) => `<button type="button" data-action="${action}" title="${action}">${label}</button>`
-  ).join("");
-}
-
-ui.actions.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-action]");
-  if (!button || sim.ended) return;
-  selectedAction = button.dataset.action;
-  renderHud();
-});
-
-ui.run.addEventListener("click", () => {
-  if (sim.ended) return;
-  running = !running;
-  renderHud();
-});
-
-ui.step.addEventListener("click", () => {
-  running = false;
-  advanceEpisode();
-});
-
-ui.reset.addEventListener("click", () => {
-  sim = resetState();
-  selectedAction = "hold";
-  running = false;
-  accumulator = 0;
-  lastPhaseText = "";
-  finalLogged = false;
-  renderHud();
-});
-
-window.addEventListener("keydown", (event) => {
-  if (event.target.closest("button")) return;
-  if (event.code === "Space") {
-    event.preventDefault();
-    if (!sim.ended) running = !running;
-  }
-  if (event.key === ".") {
-    advanceEpisode();
-  }
-});
-
 window.addEventListener("resize", () => {
   camera.aspect = root.clientWidth / root.clientHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(root.clientWidth, root.clientHeight);
 });
 
-renderActions();
 renderHud();
 animate();

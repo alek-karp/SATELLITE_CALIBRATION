@@ -17,73 +17,80 @@
   <body>
     <main class="viewport">
       <div id="scene-root"></div>
-      <section class="hud hud--left" aria-label="Episode telemetry">
+      <section class="hud hud--left" aria-label="Episode telemetry" data-panel="telemetry">
         <div class="hud__header">
-          <p class="eyebrow">Playable episode</p>
-          <h1>Satellite calibration pass</h1>
+          <div>
+            <p class="eyebrow">Episode demo</p>
+            <h1>Satellite calibration pass</h1>
+          </div>
+          <button class="hud__toggle" type="button" aria-expanded="true" aria-label="Collapse telemetry panel" data-panel-toggle>
+            <span aria-hidden="true">−</span>
+          </button>
         </div>
 
-        <div class="phase" data-stat="phase"></div>
+        <div class="hud__body">
+          <div class="phase" data-stat="phase"></div>
 
-        <div class="stat-grid">
-          <div>
-            <span>Time</span>
-            <strong data-stat="time"></strong>
+          <div class="stat-grid">
+            <div>
+              <span>Time</span>
+              <strong data-stat="time"></strong>
+            </div>
+            <div>
+              <span>SNR</span>
+              <strong data-stat="snr"></strong>
+            </div>
+            <div>
+              <span>Lock</span>
+              <strong data-stat="lock"></strong>
+            </div>
+            <div>
+              <span>Reward</span>
+              <strong data-stat="reward"></strong>
+            </div>
+            <div>
+              <span>Az error</span>
+              <strong data-stat="az"></strong>
+            </div>
+            <div>
+              <span>El error</span>
+              <strong data-stat="el"></strong>
+            </div>
+            <div>
+              <span>Freq</span>
+              <strong data-stat="freq"></strong>
+            </div>
+            <div>
+              <span>Pol</span>
+              <strong data-stat="pol"></strong>
+            </div>
+            <div>
+              <span>Bandwidth</span>
+              <strong data-stat="bandwidth"></strong>
+            </div>
+            <div>
+              <span>Score</span>
+              <strong data-stat="score"></strong>
+            </div>
           </div>
-          <div>
-            <span>SNR</span>
-            <strong data-stat="snr"></strong>
-          </div>
-          <div>
-            <span>Lock</span>
-            <strong data-stat="lock"></strong>
-          </div>
-          <div>
-            <span>Reward</span>
-            <strong data-stat="reward"></strong>
-          </div>
-          <div>
-            <span>Az error</span>
-            <strong data-stat="az"></strong>
-          </div>
-          <div>
-            <span>El error</span>
-            <strong data-stat="el"></strong>
-          </div>
-          <div>
-            <span>Freq</span>
-            <strong data-stat="freq"></strong>
-          </div>
-          <div>
-            <span>Pol</span>
-            <strong data-stat="pol"></strong>
-          </div>
-          <div>
-            <span>Bandwidth</span>
-            <strong data-stat="bandwidth"></strong>
-          </div>
-          <div>
-            <span>Score</span>
-            <strong data-stat="score"></strong>
-          </div>
+
+          <p class="scripted-action">Current action: <strong data-stat="action"></strong></p>
         </div>
-
-        <div class="transport" aria-label="Episode controls">
-          <button type="button" data-run>Run</button>
-          <button type="button" data-step>Step</button>
-          <button type="button" data-reset>Reset</button>
-        </div>
-
-        <p class="active-action">Selected: <strong data-stat="action"></strong></p>
       </section>
 
-      <section class="hud hud--right" aria-label="Agent actions">
+      <section class="hud hud--right" aria-label="Episode events" data-panel="events">
         <div class="hud__header">
-          <p class="eyebrow">Agent action space</p>
-          <h2>Choose next action</h2>
+          <div>
+            <p class="eyebrow">Scripted agent</p>
+            <h2>Episode events</h2>
+          </div>
+          <button class="hud__toggle" type="button" aria-expanded="true" aria-label="Collapse events panel" data-panel-toggle>
+            <span aria-hidden="true">−</span>
+          </button>
         </div>
-        <div class="actions" data-actions></div>
-        <ol class="event-log" data-event-log aria-label="Episode event log"></ol>
+        <div class="hud__body">
+          <ol class="event-log" data-event-log aria-label="Episode event log"></ol>
+        </div>
       </section>
     </main>
 
