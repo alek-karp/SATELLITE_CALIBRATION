@@ -13,13 +13,6 @@ export function createGroundAntenna() {
     roughness: 0.42,
     metalness: 0.72,
   });
-  const signalMaterial = new THREE.MeshStandardMaterial({
-    color: 0x7af7c4,
-    emissive: 0x1f8f75,
-    emissiveIntensity: 1.45,
-    roughness: 0.22,
-    metalness: 0.2,
-  });
 
   const basePad = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.56, 0.12, 40), darkMetal);
   basePad.position.y = 0.06;
@@ -79,7 +72,7 @@ export function createGroundAntenna() {
   feedMast.position.set(0.31, 0.3, 0);
   elevationPivot.add(feedMast);
 
-  const feedHorn = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.24, 28), signalMaterial);
+  const feedHorn = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.24, 28), metal);
   feedHorn.rotation.z = THREE.MathUtils.degToRad(-35);
   feedHorn.position.set(0.56, 0.54, 0);
   elevationPivot.add(feedHorn);
@@ -91,7 +84,7 @@ export function createGroundAntenna() {
     elevationPivot.add(strut);
   });
 
-  const receiverNode = new THREE.Mesh(new THREE.SphereGeometry(0.085, 20, 20), signalMaterial);
+  const receiverNode = new THREE.Mesh(new THREE.SphereGeometry(0.085, 20, 20), metal);
   receiverNode.position.set(0.59, 0.6, 0);
   elevationPivot.add(receiverNode);
 

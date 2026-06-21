@@ -134,6 +134,18 @@ const beamGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3
 const beamLine = new THREE.Line(beamGeometry, beamMaterial);
 scene.add(beamLine);
 
+const signalPulseMaterial = new THREE.MeshBasicMaterial({
+  color: 0x8ff3ff,
+  transparent: true,
+  opacity: 0.9,
+});
+const signalPulses = Array.from({ length: 10 }, (_, index) => {
+  const pulse = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 16), signalPulseMaterial.clone());
+  pulse.userData.offset = index / 10;
+  scene.add(pulse);
+  return pulse;
+});
+
 const ghostBeam = new THREE.Line(
   new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
   new THREE.LineDashedMaterial({
@@ -419,7 +431,16 @@ function updateBeams() {
   const health = THREE.MathUtils.clamp((sim.snr - LOCK_MIN) / (SNR_THRESHOLD + 10), 0.05, 1);
   beamMaterial.opacity = sim.locked ? 0.22 + health * 0.72 : 0.08;
   beamMaterial.color.set(sim.locked ? 0x6ae5ff : 0xff5c7c);
-  receiverNode.scale.setScalar(sim.locked ? 1 + health * 0.55 : 0.65 + Math.sin(clock.elapsedTime * 8) * 0.08);
+
+  signalPulses.forEach((pulse) => {
+    const travel = (clock.elapsedTime * (sim.locked ? 0.38 + health * 0.62 : 0.16) + pulse.userData.offset) % 1;
+    const fade = Math.sin(travel * Math.PI);
+    pulse.position.lerpVectors(dishWorld, satWorld, travel);
+    pulse.scale.setScalar(sim.locked ? 0.75 + fade * (0.8 + health * 0.9) : 0.45 + fade * 0.35);
+    pulse.material.opacity = sim.locked ? fade * (0.28 + health * 0.68) : fade * 0.18;
+    pulse.material.color.set(sim.locked ? 0x8ff3ff : 0xff5c7c);
+    pulse.visible = pulse.material.opacity > 0.03;
+  });
 }
 
 function animate() {
@@ -443,8 +464,6 @@ function animate() {
   elevationPivot.rotation.z = THREE.MathUtils.degToRad(-32 + sim.elError * 7);
   satelliteGroup.position.y = Math.sin(progress * Math.PI) * 0.72 + Math.sin(clock.elapsedTime * 0.55) * 0.12;
   updateBeams();
-
-  receiverNode.material.emissiveIntensity = sim.locked ? 1.2 + Math.sin(clock.elapsedTime * 2.4) * 0.25 : 0.25;
 
   orbit.update();
   renderer.render(scene, camera);
