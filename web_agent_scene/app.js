@@ -67,6 +67,7 @@ const sceneLabels = {
   rfi: document.querySelector("[data-scene-label='rfi']"),
   multipath: document.querySelector("[data-scene-label='multipath']"),
   hardware: document.querySelector("[data-scene-label='hardware']"),
+  action: document.querySelector("[data-scene-label='action']"),
 };
 
 document.querySelectorAll("[data-panel]").forEach((panel) => {
@@ -213,6 +214,82 @@ scene.add(hardwareGlow);
 const hardwareLight = new THREE.PointLight(ANOMALY_COLORS.hardware, 0, 4);
 scene.add(hardwareLight);
 
+const actionArrow = new THREE.ArrowHelper(
+  new THREE.Vector3(1, 0, 0),
+  new THREE.Vector3(),
+  1.05,
+  0xffce73,
+  0.26,
+  0.16
+);
+actionArrow.visible = false;
+scene.add(actionArrow);
+
+const actionWaveMaterial = new THREE.MeshBasicMaterial({
+  color: 0x61d8ff,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+});
+const actionWaves = Array.from({ length: 3 }, (_, index) => {
+  const wave = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.012, 10, 72), actionWaveMaterial.clone());
+  wave.userData.offset = index / 3;
+  wave.visible = false;
+  scene.add(wave);
+  return wave;
+});
+
+const polarizationActionRing = new THREE.Mesh(
+  new THREE.TorusGeometry(0.48, 0.018, 12, 96),
+  new THREE.MeshBasicMaterial({
+    color: ANOMALY_COLORS.polarization,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  })
+);
+polarizationActionRing.visible = false;
+scene.add(polarizationActionRing);
+
+const bandwidthActionRing = new THREE.Mesh(
+  new THREE.TorusGeometry(0.68, 0.016, 12, 96),
+  new THREE.MeshBasicMaterial({
+    color: 0x7af7c4,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  })
+);
+bandwidthActionRing.visible = false;
+scene.add(bandwidthActionRing);
+
+const snapPulse = new THREE.Mesh(
+  new THREE.SphereGeometry(0.42, 28, 28),
+  new THREE.MeshBasicMaterial({
+    color: 0xffb15f,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    wireframe: true,
+  })
+);
+snapPulse.visible = false;
+scene.add(snapPulse);
+
+const measurementGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(0.2, 24, 24),
+  new THREE.MeshBasicMaterial({
+    color: 0xf2f7fb,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  })
+);
+measurementGlow.visible = false;
+scene.add(measurementGlow);
+
 const starPositions = [];
 for (let i = 0; i < 1600; i += 1) {
   const radius = THREE.MathUtils.randFloat(18, 70);
@@ -277,6 +354,67 @@ function resetState() {
     ended: false,
     success: false,
     log: ["Episode loaded: NOAA-19 over Goldstone, 180 second compressed pass."],
+    actionPulse: null,
+  };
+}
+
+function visualKindForAction(action) {
+  if (action.startsWith("nudge_")) return "pointing";
+  if (action.startsWith("shift_freq_")) return "frequency";
+  if (action === "cycle_polarization") return "polarization";
+  if (action.includes("bandwidth")) return "bandwidth";
+  if (action === "snap_to_ephemeris") return "snap";
+  if (action === "hold") return "measure";
+  if (action === "request_handoff") return "handoff";
+  return "measure";
+}
+
+function actionLabelForAction(action) {
+  if (action === "hold") {
+    return { title: "Hold still", detail: "measure the signal before changing anything" };
+  }
+  if (action === "snap_to_ephemeris") {
+    return { title: "Recenter on satellite path", detail: "point the dish back where the satellite should be" };
+  }
+  if (action === "request_handoff") {
+    return { title: "Hand off to next station", detail: "let another ground station continue tracking" };
+  }
+  if (action.startsWith("nudge_")) {
+    const [, axis, direction, size] = action.split("_");
+    const directionName = axis === "az"
+      ? direction === "pos" ? "right" : "left"
+      : direction === "pos" ? "up" : "down";
+    const sizeName = size === "small" ? "a little" : size === "medium" ? "moderately" : "quickly";
+    return {
+      title: `Turn dish ${directionName}`,
+      detail: `move the antenna ${sizeName} to improve the signal`,
+    };
+  }
+  if (action.startsWith("shift_freq_")) {
+    const direction = action.includes("_pos_") ? "higher" : "lower";
+    return {
+      title: `Tune receiver ${direction}`,
+      detail: "listen on a nearby frequency for a clearer signal",
+    };
+  }
+  if (action === "cycle_polarization") {
+    return { title: "Rotate signal filter", detail: "try a different signal orientation" };
+  }
+  if (action === "narrow_bandwidth") {
+    return { title: "Listen through a narrower filter", detail: "block more background noise" };
+  }
+  if (action === "widen_bandwidth") {
+    return { title: "Listen through a wider filter", detail: "catch more of the signal" };
+  }
+  return { title: "Adjust receiver", detail: "try to improve the satellite signal" };
+}
+
+function startActionPulse(action) {
+  sim.actionPulse = {
+    action,
+    kind: visualKindForAction(action),
+    label: actionLabelForAction(action),
+    startedAt: clock.elapsedTime,
   };
 }
 
@@ -343,6 +481,7 @@ function executeAction(action) {
   const before = { az: sim.azError, el: sim.elError };
   sim.slew = 0;
   sim.lastAction = action;
+  startActionPulse(action);
 
   const applyPointing = (axis, amount) => {
     if (axis === "az") sim.azError -= amount;
@@ -511,7 +650,7 @@ function renderHud() {
   ui.freq.textContent = `${sim.freqOffset >= 0 ? "+" : ""}${Math.round(sim.freqOffset)} Hz`;
   ui.pol.textContent = POLARIZATIONS[sim.polMode];
   ui.bandwidth.textContent = `${sim.bandwidthFactor.toFixed(2)}x`;
-  ui.action.textContent = sim.lastAction.replaceAll("_", " ");
+  ui.action.textContent = actionLabelForAction(sim.lastAction).title.toLowerCase();
   ui.score.textContent = `${Math.round(sim.totalReward)}`;
   ui.eventLog.innerHTML = sim.log.map((entry) => `<li>${entry}</li>`).join("");
   document.body.dataset.anomaly = active[0]?.kind ?? "none";
@@ -521,6 +660,125 @@ function renderHud() {
   ui.pol.dataset.state = activeKinds.has("polarization") ? "warn" : "normal";
   ui.bandwidth.dataset.state = activeKinds.has("rfi") || activeKinds.has("hardware") ? "warn" : "normal";
   ui.snr.dataset.state = sim.snr < SNR_THRESHOLD ? "bad" : "good";
+}
+
+function hideActionObjects() {
+  actionArrow.visible = false;
+  sceneLabels.action?.classList.remove("is-visible");
+  actionWaves.forEach((wave) => {
+    wave.visible = false;
+    wave.material.opacity = 0;
+  });
+  polarizationActionRing.visible = false;
+  polarizationActionRing.material.opacity = 0;
+  bandwidthActionRing.visible = false;
+  bandwidthActionRing.material.opacity = 0;
+  snapPulse.visible = false;
+  snapPulse.material.opacity = 0;
+  measurementGlow.visible = false;
+  measurementGlow.material.opacity = 0;
+}
+
+function updateActionPulse() {
+  const pulse = sim.actionPulse;
+  if (!pulse) {
+    hideActionObjects();
+    return;
+  }
+
+  const age = clock.elapsedTime - pulse.startedAt;
+  const duration = pulse.kind === "measure" ? 0.55 : 0.95;
+  const progress = THREE.MathUtils.clamp(age / duration, 0, 1);
+  if (progress >= 1) {
+    sim.actionPulse = null;
+    hideActionObjects();
+    return;
+  }
+
+  hideActionObjects();
+
+  const dishWorld = receiverNode.getWorldPosition(new THREE.Vector3());
+  const stationWorld = stationGroup.getWorldPosition(new THREE.Vector3());
+  const satWorld = satelliteGroup.getWorldPosition(new THREE.Vector3());
+  const beamDirection = satWorld.clone().sub(dishWorld).normalize();
+  const side = new THREE.Vector3().crossVectors(beamDirection, camera.position.clone().sub(dishWorld).normalize());
+  if (side.lengthSq() < 0.001) side.set(0, 1, 0);
+  side.normalize();
+  const up = new THREE.Vector3().crossVectors(side, beamDirection).normalize();
+  const ringRotation = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), beamDirection);
+  const fade = Math.sin(progress * Math.PI);
+  if (sceneLabels.action) {
+    sceneLabels.action.querySelector("strong").textContent = pulse.label.title;
+    sceneLabels.action.querySelector("span").textContent = pulse.label.detail;
+    projectLabel(sceneLabels.action, dishWorld.clone().add(up.clone().multiplyScalar(0.85)), 22, -26);
+  }
+
+  if (pulse.kind === "pointing") {
+    const [, axis, direction, size] = pulse.action.split("_");
+    const length = size === "small" ? 0.58 : size === "medium" ? 0.86 : 1.18;
+    const vector = axis === "az" ? side.clone() : up.clone();
+    if (direction === "neg") vector.multiplyScalar(-1);
+    actionArrow.position.copy(dishWorld).add(vector.clone().multiplyScalar(0.28)).add(up.clone().multiplyScalar(0.12));
+    actionArrow.setDirection(vector.normalize());
+    actionArrow.setLength(length, 0.24, 0.16);
+    actionArrow.setColor(new THREE.Color(0xffce73));
+    actionArrow.visible = true;
+    actionArrow.cone.material.opacity = fade;
+    actionArrow.line.material.opacity = fade;
+    actionArrow.cone.material.transparent = true;
+    actionArrow.line.material.transparent = true;
+    return;
+  }
+
+  if (pulse.kind === "frequency" || pulse.kind === "handoff") {
+    const color = pulse.kind === "handoff" ? 0x7af7c4 : 0x61d8ff;
+    actionWaves.forEach((wave) => {
+      const localProgress = (progress + wave.userData.offset) % 1;
+      const scale = 0.45 + localProgress * (pulse.kind === "handoff" ? 2.2 : 1.35);
+      wave.position.copy(dishWorld).add(beamDirection.clone().multiplyScalar(0.2 + localProgress * 0.38));
+      wave.quaternion.copy(ringRotation);
+      wave.scale.setScalar(scale);
+      wave.material.color.set(color);
+      wave.material.opacity = (1 - localProgress) * fade * 0.72;
+      wave.visible = true;
+    });
+    return;
+  }
+
+  if (pulse.kind === "polarization") {
+    polarizationActionRing.position.copy(dishWorld).add(beamDirection.clone().multiplyScalar(0.34));
+    polarizationActionRing.quaternion.copy(ringRotation);
+    polarizationActionRing.rotateZ(clock.elapsedTime * 9);
+    polarizationActionRing.scale.setScalar(0.88 + 0.32 * fade);
+    polarizationActionRing.material.opacity = 0.82 * fade;
+    polarizationActionRing.visible = true;
+    return;
+  }
+
+  if (pulse.kind === "bandwidth") {
+    const isNarrow = pulse.action === "narrow_bandwidth";
+    const scale = isNarrow ? 1.35 - progress * 0.72 : 0.62 + progress * 1.05;
+    bandwidthActionRing.position.copy(dishWorld).add(beamDirection.clone().multiplyScalar(0.28));
+    bandwidthActionRing.quaternion.copy(ringRotation);
+    bandwidthActionRing.scale.setScalar(scale);
+    bandwidthActionRing.material.opacity = 0.78 * fade;
+    bandwidthActionRing.visible = true;
+    return;
+  }
+
+  if (pulse.kind === "snap") {
+    snapPulse.position.copy(stationWorld).add(stationWorld.clone().normalize().multiplyScalar(0.45));
+    snapPulse.scale.setScalar(0.45 + progress * 2.1);
+    snapPulse.material.color.set(0xffb15f);
+    snapPulse.material.opacity = (1 - progress) * 0.68;
+    snapPulse.visible = true;
+    return;
+  }
+
+  measurementGlow.position.copy(dishWorld);
+  measurementGlow.scale.setScalar(0.9 + fade * 0.65);
+  measurementGlow.material.opacity = fade * 0.42;
+  measurementGlow.visible = true;
 }
 
 function updateBeams() {
@@ -679,6 +937,7 @@ function animate() {
   elevationPivot.rotation.z = THREE.MathUtils.degToRad(-32 + sim.elError * 7);
   satelliteGroup.position.x = 7.3 + Math.sin(clock.elapsedTime * 0.55) * 0.08;
   orbit.update();
+  updateActionPulse();
   updateBeams();
   updateSceneLabels();
 

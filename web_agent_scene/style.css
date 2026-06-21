@@ -120,6 +120,26 @@ body {
   background: linear-gradient(rgba(255, 123, 69, 0.78), rgba(255, 123, 69, 0));
 }
 
+.scene-label--action {
+  z-index: 3;
+  min-width: 230px;
+  border-color: rgba(242, 247, 251, 0.72);
+  background: rgba(5, 10, 16, 0.82);
+}
+
+.scene-label--action::after {
+  background: linear-gradient(rgba(242, 247, 251, 0.82), rgba(242, 247, 251, 0));
+}
+
+.scene-label--action strong {
+  font-size: 0.86rem;
+}
+
+.scene-label--action span {
+  color: #d4e0e8;
+  font-size: 0.72rem;
+}
+
 .scene-label.is-visible {
   opacity: 1;
 }
